@@ -3,58 +3,87 @@ import { parseRoutineEntryId, routineEntryId } from './actions'
 import { addDays, daysBetween, diffDays, weekdayIndex } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
 import { type DayItem, computeDayStats, regularity } from './stats'
-import type { DayKey, Entry, Routine, Session, Subtask, Task } from './types'
+import type { DayKey, Entry, Pause, Routine, Session, Subtask, Task } from './types'
 
-async function buildItems(d: AppDB, entries: Entry[]): Promise<DayItem[]> {
-  if (entries.length === 0) return []
-  const taskIds = [...new Set(entries.map((e) => e.taskId).filter((x): x is string => !!x))]
-  const tasks = new Map(
-    (await d.tasks.bulkGet(taskIds)).filter((t): t is Task => !!t).map((t) => [t.id, t] as const),
-  )
-  const routines = new Map((await d.routines.toArray()).map((r) => [r.id, r] as const))
-  const sessions = await d.sessions
-    .where('entryId')
-    .anyOf(entries.map((e) => e.id))
-    .toArray()
-  const byEntry = new Map<string, Session[]>()
-  for (const s of sessions) {
-    const list = byEntry.get(s.entryId)
-    if (list) list.push(s)
-    else byEntry.set(s.entryId, [s])
-  }
+/*
+ * Règle d'écriture des lectures « en direct » (useLiveQuery / liveQuery) :
+ * Dexie ne suit les tables lues que tant que l'on enchaîne des `await` sur ses propres requêtes.
+ * Après l'`await` d'une autre fonction asynchrone, le suivi est perdu et l'écran ne se met plus à jour.
+ * Donc : une fonction de lecture charge tout en un bloc (`fetchRaw`), puis calcule en synchrone.
+ */
 
-  return entries.map((e) => {
-    const task = e.taskId ? tasks.get(e.taskId) : undefined
-    const routine = e.routineId ? routines.get(e.routineId) : undefined
-    const live = task ?? routine
-    const snapped = e.status !== 'todo' && e.nameSnapshot !== undefined
-    const own = byEntry.get(e.id) ?? []
-    const running = own.find((s) => s.running === 1)
-    return {
-      id: e.id,
-      virtual: false,
-      kind: e.kind,
-      taskId: e.taskId,
-      routineId: e.routineId,
-      date: e.date,
-      scheduledDate: e.scheduledDate,
-      status: e.status,
-      movedTo: e.movedTo,
-      position: e.position,
-      name: (snapped ? e.nameSnapshot : live?.name) ?? e.nameSnapshot ?? 'Sans titre',
-      estimateMin: snapped ? e.estimateMinSnapshot : live?.estimateMin,
-      categoryId: snapped ? e.categoryIdSnapshot : live?.categoryId,
-      unplanned: !!e.unplanned,
-      spentSec: own.filter((s) => s.running === 0).reduce((n, s) => n + s.durationSec, 0),
-      runningSince: running?.startAt,
-      hasSessions: own.length > 0,
-      taskDeleted: task?.status === 'deleted',
-    } satisfies DayItem
-  })
+export interface Raw {
+  entries: Entry[]
+  /** `routineId|date d'origine` de tous les passages déjà créés : évite d'afficher une occurrence en double. */
+  scheduledKeys: Set<string>
+  tasks: Map<string, Task>
+  routines: Routine[]
+  pauses: Pause[]
+  sessions: Map<string, Session[]>
 }
 
-function sortItems(items: DayItem[]): DayItem[] {
-  return items.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+export async function fetchRaw(
+  d: AppDB,
+  opts: { from: DayKey; to: DayKey } | { entries: Entry[] },
+): Promise<Raw> {
+  const entries =
+    'entries' in opts ? opts.entries : await d.entries.where('date').between(opts.from, opts.to, true, true).toArray()
+  const scheduled =
+    'entries' in opts ? [] : await d.entries.where('scheduledDate').between(opts.from, opts.to, true, true).toArray()
+  const routines = await d.routines.toArray()
+  const pauses = await d.pauses.toArray()
+  const taskIds = [...new Set(entries.map((e) => e.taskId).filter((x): x is string => !!x))]
+  const taskList = taskIds.length ? await d.tasks.bulkGet(taskIds) : []
+  const sessionList = entries.length
+    ? await d.sessions
+        .where('entryId')
+        .anyOf(entries.map((e) => e.id))
+        .toArray()
+    : []
+
+  const sessions = new Map<string, Session[]>()
+  for (const s of sessionList) {
+    const list = sessions.get(s.entryId)
+    if (list) list.push(s)
+    else sessions.set(s.entryId, [s])
+  }
+  return {
+    entries,
+    scheduledKeys: new Set(scheduled.filter((e) => e.routineId).map((e) => `${e.routineId}|${e.scheduledDate}`)),
+    tasks: new Map(taskList.filter((t): t is Task => !!t).map((t) => [t.id, t] as const)),
+    routines,
+    pauses,
+    sessions,
+  }
+}
+
+function toItem(e: Entry, raw: Raw): DayItem {
+  const task = e.taskId ? raw.tasks.get(e.taskId) : undefined
+  const routine = e.routineId ? raw.routines.find((r) => r.id === e.routineId) : undefined
+  const live = task ?? routine
+  const snapped = e.status !== 'todo' && e.nameSnapshot !== undefined
+  const own = raw.sessions.get(e.id) ?? []
+  const running = own.find((s) => s.running === 1)
+  return {
+    id: e.id,
+    virtual: false,
+    kind: e.kind,
+    taskId: e.taskId,
+    routineId: e.routineId,
+    date: e.date,
+    scheduledDate: e.scheduledDate,
+    status: e.status,
+    movedTo: e.movedTo,
+    position: e.position,
+    name: (snapped ? e.nameSnapshot : live?.name) ?? e.nameSnapshot ?? 'Sans titre',
+    estimateMin: snapped ? e.estimateMinSnapshot : live?.estimateMin,
+    categoryId: snapped ? e.categoryIdSnapshot : live?.categoryId,
+    unplanned: !!e.unplanned,
+    spentSec: own.filter((s) => s.running === 0).reduce((n, s) => n + s.durationSec, 0),
+    runningSince: running?.startAt,
+    hasSessions: own.length > 0,
+    taskDeleted: task?.status === 'deleted',
+  }
 }
 
 function virtualItem(r: Routine, date: DayKey): DayItem {
@@ -77,26 +106,30 @@ function virtualItem(r: Routine, date: DayKey): DayItem {
   }
 }
 
-/** Liste d'un jour. Les occurrences de routines à venir sont calculées, pas stockées. */
-export async function loadDayItems(d: AppDB, date: DayKey, today: DayKey): Promise<DayItem[]> {
-  const entries = await d.entries.where('date').equals(date).toArray()
-  const items = await buildItems(d, entries)
+/** Liste d'un jour, en synchrone. Les occurrences de routines à venir sont calculées, pas stockées. */
+export function dayItemsFromRaw(raw: Raw, date: DayKey, today: DayKey): DayItem[] {
+  const items = raw.entries.filter((e) => e.date === date).map((e) => toItem(e, raw))
   if (date > today) {
-    const routines = await d.routines.toArray()
-    const pauses = await d.pauses.toArray()
-    for (const r of routines) {
-      if (!isRoutineScheduledOn(r, date) || isPaused(pauses, r.id, date)) continue
-      const exists = await d.entries.where('[routineId+scheduledDate]').equals([r.id, date]).count()
-      if (exists === 0) items.push(virtualItem(r, date))
+    for (const r of raw.routines) {
+      if (!isRoutineScheduledOn(r, date) || isPaused(raw.pauses, r.id, date)) continue
+      if (!raw.scheduledKeys.has(`${r.id}|${date}`)) items.push(virtualItem(r, date))
     }
   }
-  return sortItems(items)
+  return items.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
+}
+
+export async function loadDayItems(d: AppDB, date: DayKey, today: DayKey): Promise<DayItem[]> {
+  const raw = await fetchRaw(d, { from: date, to: date })
+  return dayItemsFromRaw(raw, date, today)
 }
 
 /** Un passage par son identifiant, y compris une occurrence virtuelle. */
 export async function loadItem(d: AppDB, entryId: string): Promise<DayItem | null> {
   const entry = await d.entries.get(entryId)
-  if (entry) return (await buildItems(d, [entry]))[0] ?? null
+  if (entry) {
+    const raw = await fetchRaw(d, { entries: [entry] })
+    return toItem(entry, raw)
+  }
   const p = parseRoutineEntryId(entryId)
   if (!p) return null
   const r = await d.routines.get(p.routineId)
@@ -105,8 +138,9 @@ export async function loadItem(d: AppDB, entryId: string): Promise<DayItem | nul
 
 /** Charge estimée de chaque jour (en minutes), pour la bande semaine. */
 export async function loadLoads(d: AppDB, days: DayKey[], today: DayKey): Promise<Record<DayKey, number>> {
+  const raw = await fetchRaw(d, { from: days[0], to: days[days.length - 1] })
   const out: Record<DayKey, number> = {}
-  for (const day of days) out[day] = computeDayStats(await loadDayItems(d, day, today), 0).loadMin
+  for (const day of days) out[day] = computeDayStats(dayItemsFromRaw(raw, day, today), 0).loadMin
   return out
 }
 
@@ -121,8 +155,8 @@ export interface ReserveItem {
 export async function loadReserve(d: AppDB, today: DayKey): Promise<ReserveItem[]> {
   const todos = await d.tasks.where('status').equals('todo').toArray()
   const open = await d.entries.where('status').equals('todo').toArray()
-  const planned = new Set(open.map((e) => e.taskId).filter((x): x is string => !!x))
   const history = await d.entries.where('status').anyOf('not_done', 'postponed').toArray()
+  const planned = new Set(open.map((e) => e.taskId).filter((x): x is string => !!x))
   const counts = new Map<string, number>()
   for (const e of history) if (e.taskId) counts.set(e.taskId, (counts.get(e.taskId) ?? 0) + 1)
 
@@ -189,6 +223,13 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
   if (!routine) return null
   const entries = await d.entries.where('routineId').equals(routineId).toArray()
   const pauses = await d.pauses.toArray()
+  const doneEntries = entries.filter((e) => e.status === 'done').sort((a, b) => b.date.localeCompare(a.date))
+  const sessionList = doneEntries.length
+    ? await d.sessions
+        .where('entryId')
+        .anyOf(doneEntries.map((e) => e.id))
+        .toArray()
+    : []
 
   const sunday = addDays(today, 6 - weekdayIndex(today)) // dimanche de la semaine courante
   const days = daysBetween(addDays(sunday, -27), sunday)
@@ -202,12 +243,12 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
   })
 
   // temps réel moyen sur les 10 dernières réalisations chronométrées
-  const doneEntries = entries.filter((e) => e.status === 'done').sort((a, b) => b.date.localeCompare(a.date))
+  const secByEntry = new Map<string, number>()
+  for (const s of sessionList) secByEntry.set(s.entryId, (secByEntry.get(s.entryId) ?? 0) + s.durationSec)
   const timed: number[] = []
   for (const e of doneEntries) {
     if (timed.length >= 10) break
-    const ss = await d.sessions.where('entryId').equals(e.id).toArray()
-    const sec = ss.reduce((n, s) => n + s.durationSec, 0)
+    const sec = secByEntry.get(e.id) ?? 0
     if (sec > 0) timed.push(sec / 60)
   }
   const avgRealMin = timed.length ? timed.reduce((a, b) => a + b, 0) / timed.length : undefined

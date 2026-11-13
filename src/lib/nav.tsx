@@ -1,0 +1,30 @@
+import { createContext, useContext } from 'react'
+import type { DayKey } from '../domain/types'
+
+export type Tab = 'day' | 'reserve' | 'routines' | 'bilan'
+
+export type SheetState =
+  | { type: 'add'; plan?: DayKey | 'reserve' }
+  | { type: 'task'; taskId: string; entryId?: string }
+  | { type: 'occurrence'; entryId: string }
+  | { type: 'routine'; routineId: string | 'new' }
+  | { type: 'pause'; routineId?: string }
+  | { type: 'review' }
+  | { type: 'settings' }
+  | null
+
+export interface Nav {
+  today: DayKey
+  tab: Tab
+  setTab: (t: Tab) => void
+  selectedDay: DayKey
+  setSelectedDay: (d: DayKey) => void
+  sheet: SheetState
+  setSheet: (s: SheetState) => void
+  focusEntryId: string | null
+  setFocus: (entryId: string | null) => void
+}
+
+export const NavContext = createContext<Nav>(null as unknown as Nav)
+
+export const useNav = () => useContext(NavContext)

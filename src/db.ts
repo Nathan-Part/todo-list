@@ -19,7 +19,7 @@ export class AppDB extends Dexie {
       subtasks: 'id, taskId',
       routines: 'id',
       pauses: 'id, routineId',
-      entries: 'id, date, status, taskId, routineId, [taskId+status], [routineId+scheduledDate]',
+      entries: 'id, date, scheduledDate, status, taskId, routineId, [taskId+status], [routineId+scheduledDate]',
       sessions: 'id, entryId, date, running',
       meta: 'key',
     })
