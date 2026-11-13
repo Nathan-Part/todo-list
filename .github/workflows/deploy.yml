@@ -1,0 +1,45 @@
+name: Déploiement OVH
+
+# Se déclenche quand le code est validé sur « main ».
+# Désactivé tant que la variable de dépôt DEPLOY_ENABLED n'est pas « true »
+# (Settings > Secrets and variables > Actions > Variables).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+      - name: Envoi par SFTP vers OVH
+        env:
+          SFTP_HOST: ${{ secrets.SFTP_HOST }}
+          SFTP_USER: ${{ secrets.SFTP_USER }}
+          SFTP_PASSWORD: ${{ secrets.SFTP_PASSWORD }}
+          # Dossier de destination sur l'hébergement, par exemple « www ». Jamais la racine entière.
+          SFTP_DIR: ${{ secrets.SFTP_DIR }}
+        run: |
+          set -euo pipefail
+          test -n "$SFTP_HOST" && test -n "$SFTP_USER" && test -n "$SFTP_PASSWORD" && test -n "$SFTP_DIR"
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+          # 1) tout sauf les fichiers qui décident de la version affichée, 2) puis ces fichiers :
+          # le site n'est jamais dans un état incohérent. Aucune suppression côté serveur.
+          lftp -u "$SFTP_USER","$SFTP_PASSWORD" "sftp://$SFTP_HOST" <<LFTP
+          set sftp:auto-confirm yes
+          set net:max-retries 3
+          mirror -R --parallel=2 --verbose -x '^(index\.html|sw\.js|manifest\.webmanifest)$' dist/ "$SFTP_DIR"
+          mirror -R --verbose -i '^(index\.html|sw\.js|manifest\.webmanifest)$' dist/ "$SFTP_DIR"
+          bye
+          LFTP

@@ -6,6 +6,8 @@
 | **Statut** | Issu du cadrage ; à relire et valider avant tout développement |
 | **Périmètre** | Version 1 complète, puis évolutions futures |
 
+> **Mise à jour du 13 novembre 2026.** La sauvegarde automatique chiffrée (jalon 3, section 11) est abandonnée pour l'instant : l'export et l'import manuels la remplacent. Le développement a commencé : les jalons 0 à 2 sont réalisés, le jalon 4 hors sous-tâches, le jalon 5 hors frise du temps réel. Voir le `README.md` pour l'état exact.
+
 Les règles suivies de la mention *(à confirmer)* sont des propositions posées pour combler un vide : elles n'ont pas été tranchées pendant le cadrage. Elles sont récapitulées en [section 15](#15-points-à-confirmer).
 
 ## Sommaire

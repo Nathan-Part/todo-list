@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 
 /* ---------------------------------------------------------------- */
 /* Icônes (traits fins, 24×24)                                       */
@@ -113,6 +113,30 @@ export const inputClass =
 /* Feuille modale                                                    */
 /* ---------------------------------------------------------------- */
 
+/**
+ * Sur iPhone, le clavier recouvre le bas de la page sans la redimensionner : on cale la feuille
+ * sur la zone réellement visible pour que les boutons du bas restent accessibles.
+ */
+function useKeyboardViewport() {
+  const [vv, setVv] = useState<{ top: number; height: number } | null>(null)
+  useEffect(() => {
+    const v = window.visualViewport
+    if (!v) return
+    const update = () => {
+      if (window.innerHeight - v.height > 120) setVv({ top: v.offsetTop, height: v.height })
+      else setVv(null)
+    }
+    update()
+    v.addEventListener('resize', update)
+    v.addEventListener('scroll', update)
+    return () => {
+      v.removeEventListener('resize', update)
+      v.removeEventListener('scroll', update)
+    }
+  }, [])
+  return vv
+}
+
 export function Sheet({
   title,
   onClose,
@@ -124,6 +148,7 @@ export function Sheet({
   children: ReactNode
   footer?: ReactNode
 }) {
+  const vv = useKeyboardViewport()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -133,9 +158,14 @@ export function Sheet({
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-40 flex items-end justify-center"
+      style={vv ? { top: vv.top, height: vv.height, bottom: 'auto' } : undefined}
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="anim-fade absolute inset-0 bg-black/45" onClick={onClose} />
-      <div className="anim-sheet relative flex max-h-[92dvh] w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-2xl">
+      <div className="anim-sheet relative flex max-h-[92%] w-full max-w-md flex-col rounded-t-3xl bg-surface shadow-2xl">
         <div className="mx-auto mt-2 h-1 w-9 shrink-0 rounded-full bg-line" />
         <header className="flex shrink-0 items-start justify-between gap-3 px-5 pb-1 pt-3">
           <h2 className="min-w-0 flex-1 text-xl font-semibold leading-tight">{title}</h2>
