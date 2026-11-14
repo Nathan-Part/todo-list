@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CapacityEditor } from '../components/CapacityEditor'
-import { btnPrimary } from '../components/ui'
+import { btnGhost, btnPrimary } from '../components/ui'
 import { DEFAULT_CAPACITY, META, db, newId, setMeta } from '../db'
 
 const SEED = [
@@ -15,9 +15,9 @@ const SEED = [
 export function Welcome({ onDone }: { onDone: () => void }) {
   const [capacity, setCapacity] = useState(DEFAULT_CAPACITY)
 
-  async function start() {
+  async function start(cap: number[]) {
     await db.transaction('rw', db.meta, db.categories, async () => {
-      await setMeta(db, META.capacity, capacity)
+      await setMeta(db, META.capacity, cap)
       if ((await db.categories.count()) === 0) {
         await db.categories.bulkAdd(SEED.map((c, i) => ({ id: newId(), name: c.name, color: c.color, position: i + 1 })))
       }
@@ -33,14 +33,24 @@ export function Welcome({ onDone }: { onDone: () => void }) {
         Tes routines reviennent toutes seules, tes tâches ne disparaissent jamais, et tu vois si ta journée tient avant de la commencer.
       </p>
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-muted">Combien de temps as-tu chaque jour ?</h2>
-      <p className="mb-3 mt-1 text-sm text-muted">Modifiable à tout moment dans les réglages.</p>
+      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-muted">
+        Combien de temps as-tu chaque jour ? <span className="normal-case font-normal">(facultatif)</span>
+      </h2>
+      <p className="mb-3 mt-1 text-sm text-muted">
+        Sert à te prévenir quand une journée est trop chargée. Tu ne sais pas ? Passe cette étape : tu pourras le régler plus tard
+        dans les réglages (roue dentée en haut à droite).
+      </p>
       <CapacityEditor value={capacity} onChange={setCapacity} />
 
       <div className="flex-1" />
-      <button type="button" className={`${btnPrimary} mt-8 w-full py-3.5 text-base`} onClick={() => void start()}>
-        Commencer
-      </button>
+      <div className="mt-8 flex gap-2">
+        <button type="button" className={`${btnGhost} flex-1 py-3.5 text-base`} onClick={() => void start(DEFAULT_CAPACITY)}>
+          Passer
+        </button>
+        <button type="button" className={`${btnPrimary} flex-1 py-3.5 text-base`} onClick={() => void start(capacity)}>
+          Commencer
+        </button>
+      </div>
     </div>
   )
 }

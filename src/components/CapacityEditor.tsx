@@ -27,7 +27,7 @@ export function CapacityEditor({ value, onChange }: { value: number[]; onChange:
               <span className="text-xl leading-none">−</span>
             </button>
             <span className="w-16 text-center text-[15px] font-semibold tabular">
-              {value[i] ? formatMin(value[i]) : '0'}
+              {value[i] ? formatMin(value[i]) : '–'}
             </span>
             <button
               type="button"

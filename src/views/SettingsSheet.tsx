@@ -46,8 +46,14 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
       <Field label="Temps disponible par jour">
         <CapacityEditor value={capacity} onChange={(v) => void setMeta(db, META.capacity, v)} />
         <p className="mt-2 text-xs text-muted">
-          Sert à repérer les journées surchargées : la jauge devient rouge quand la charge dépasse ce temps.
+          Facultatif. Sert à repérer les journées surchargées : la jauge devient rouge quand la charge dépasse ce temps. Laisse « – »
+          pour un jour sans limite.
         </p>
+        {capacity.some((c) => c > 0) && (
+          <button type="button" className={`${btnGhost} mt-2`} onClick={() => void setMeta(db, META.capacity, DEFAULT_CAPACITY)}>
+            Tout effacer (pas de limite)
+          </button>
+        )}
       </Field>
 
       <Field label="Catégories">

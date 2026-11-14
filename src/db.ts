@@ -34,8 +34,8 @@ export const META = {
   onboarded: 'onboarded',
 } as const
 
-/** Capacité par défaut, du lundi au dimanche (en minutes). */
-export const DEFAULT_CAPACITY = [240, 240, 240, 240, 240, 360, 360]
+/** Capacité par défaut, du lundi au dimanche (en minutes) : 0 = non définie, pas de limite. */
+export const DEFAULT_CAPACITY = [0, 0, 0, 0, 0, 0, 0]
 
 export async function getMeta<T>(d: AppDB, key: string, fallback: T): Promise<T> {
   const row = await d.meta.get(key)

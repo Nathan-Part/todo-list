@@ -16,6 +16,7 @@ export function WeekStrip({
   const days = weekDays(selected)
   const loads = useLoads(days, today)
   const capacity = useCapacity()
+  const weekMax = Math.max(0, ...days.map((d) => loads[d] ?? 0))
   const touch = useRef<{ x: number; y: number } | null>(null)
 
   return (
@@ -36,7 +37,8 @@ export function WeekStrip({
       {days.map((day) => {
         const load = loads[day] ?? 0
         const cap = capacity[weekdayIndex(day)] ?? 0
-        const ratio = cap > 0 ? Math.min(1, load / cap) : 0
+        // sans temps disponible défini, la barre compare les jours de la semaine entre eux
+        const ratio = cap > 0 ? Math.min(1, load / cap) : weekMax > 0 ? load / weekMax : 0
         const over = cap > 0 && load > cap
         const isSelected = day === selected
         const isToday = day === today

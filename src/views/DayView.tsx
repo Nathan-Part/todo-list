@@ -204,6 +204,12 @@ function KeyFigures({ items, mode, now, day }: { items: DayItem[]; mode: RowMode
           <div className="h-full rounded-full bg-good transition-all" style={{ width: `${progress * 100}%` }} />
         </div>
       )}
+      {cap === 0 && s.loadMin > 0 && (
+        <div className="mt-3 flex items-baseline justify-between text-xs">
+          <span className="text-muted">Charge</span>
+          <span className="tabular text-muted">{formatMin(s.loadMin)}</span>
+        </div>
+      )}
       {cap > 0 && (
         <div className="mt-3">
           <div className="flex items-baseline justify-between text-xs">
@@ -234,6 +240,9 @@ function KeyFigures({ items, mode, now, day }: { items: DayItem[]; mode: RowMode
           <dd className="text-right tabular">{s.noEstimate}</dd>
           <dt className="text-muted">Reportées</dt>
           <dd className="text-right tabular">{s.postponed}</dd>
+          <dt className="text-muted">Temps disponible</dt>
+          <dd className="text-right tabular">{cap > 0 ? formatMin(cap) : 'non défini'}</dd>
+          <dd className="col-span-2 text-muted">Modifiable dans les réglages (roue dentée en haut à droite).</dd>
         </dl>
       )}
     </button>
@@ -316,7 +325,7 @@ export function DayView() {
           onClick={() => setSheet({ type: 'settings' })}
           className="-mr-2 shrink-0 rounded-full p-2 text-muted active:bg-surface"
         >
-          <Icon name="sliders" />
+          <Icon name="gear" />
         </button>
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-2">
