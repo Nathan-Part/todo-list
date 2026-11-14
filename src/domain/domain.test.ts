@@ -595,3 +595,14 @@ describe('chrono oublié', () => {
     expect(s).toMatchObject({ running: 0, durationSec: 90 * 60 })
   })
 })
+
+describe('annuler un saut', () => {
+  it('une occurrence sautée redevient à faire', async () => {
+    const { unskipEntry } = await import('./actions')
+    const rid = await createRoutine(db, { name: 'Sport', frequency: { type: 'daily' }, startDate: MON }, at(MON))
+    const e = routineEntryId(rid, MON, MON)
+    await skipEntry(db, e, at(MON))
+    await unskipEntry(db, e, at(MON, 10))
+    expect((await db.entries.get(e))!.status).toBe('todo')
+  })
+})

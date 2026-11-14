@@ -8,6 +8,7 @@ import {
   postponeEntry,
   reopenEntry,
   skipEntry,
+  unskipEntry,
   startTimer,
   taskEntryId,
 } from '../domain/actions'
@@ -112,7 +113,11 @@ export function useItemActions() {
   const skip = useCallback(
     async (item: DayItem) => {
       await skipEntry(db, item.id, Date.now())
-      toast({ text: 'Occurrence sautée', duration: 2500 })
+      toast({
+        text: 'Occurrence sautée',
+        actionLabel: 'Annuler',
+        onAction: () => void unskipEntry(db, item.id, Date.now()),
+      })
     },
     [toast],
   )

@@ -414,6 +414,16 @@ export function skipEntry(d: AppDB, entryId: string, nowMs: number): Promise<voi
   })
 }
 
+/** Annule le saut d'une occurrence : à faire si le jour n'est pas passé, sinon « non faite ». */
+export function unskipEntry(d: AppDB, entryId: string, nowMs: number): Promise<void> {
+  return tx(d, async () => {
+    const e = await d.entries.get(entryId)
+    if (!e || e.status !== 'skipped') return
+    const today = dayKeyOf(nowMs)
+    await d.entries.update(e.id, e.date >= today ? { status: 'todo', closedAt: undefined } : { status: 'not_done', closedAt: nowMs })
+  })
+}
+
 /** Supprime une tâche : le temps déjà enregistré reste dans l'historique (RG-90/91). */
 export function deleteTask(d: AppDB, taskId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {

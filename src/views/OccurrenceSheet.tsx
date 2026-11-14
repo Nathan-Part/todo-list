@@ -12,6 +12,7 @@ import {
   reopenEntry,
   skipEntry,
   startTimer,
+  unskipEntry,
 } from '../domain/actions'
 import { addDays } from '../domain/dates'
 import { loadItem } from '../domain/queries'
@@ -103,6 +104,22 @@ export function OccurrenceSheet({ entryId, onClose }: { entryId: string; onClose
           <button type="button" className={btnGhost} onClick={() => void reopenEntry(db, item.id, Date.now())}>
             <Icon name="undo" className="size-4" />
             Rouvrir
+          </button>
+        </div>
+      )}
+
+      {item.status === 'skipped' && (
+        <div className="mt-4">
+          <button
+            type="button"
+            className={btnGhost}
+            onClick={async () => {
+              await unskipEntry(db, item.id, Date.now())
+              toast({ text: 'Saut annulé', duration: 2500 })
+            }}
+          >
+            <Icon name="undo" className="size-4" />
+            Annuler le saut
           </button>
         </div>
       )}
