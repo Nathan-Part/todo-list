@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Chip, Sheet, btnPrimary, inputClass } from '../components/ui'
+import { Chip, Sheet, btnPrimary, inputBase } from '../components/ui'
 import { db } from '../db'
 import { pauseRoutines } from '../domain/actions'
 import { addDays } from '../domain/dates'
@@ -51,7 +51,7 @@ export function PauseSheet({ routineId, onClose }: { routineId?: string; onClose
             min={today}
             value={until}
             onChange={(e) => e.target.value && setUntil(e.target.value)}
-            className={`${inputClass} w-auto`}
+            className={`${inputBase} w-auto`}
           />
         </label>
       )}

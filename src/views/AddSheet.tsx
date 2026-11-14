@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { CategoryChips, EstimateChips, WeekdayToggles } from '../components/pickers'
-import { Chip, Field, Sheet, btnGhost, btnPrimary, inputClass } from '../components/ui'
+import { Chip, Field, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addTask, addUnplanned, createRoutine } from '../domain/actions'
 import { addDays } from '../domain/dates'
@@ -193,7 +193,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
               max={365}
               value={interval}
               onChange={(e) => setIntervalDays(Math.max(2, Math.round(Number(e.target.value) || 2)))}
-              className={`${inputClass} w-20`}
+              className={`${inputBase} w-20 shrink-0`}
             />
             jours
           </div>
@@ -213,7 +213,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
                 min={today}
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className={`${inputClass} w-auto`}
+                className={`${inputBase} w-auto`}
               />
             </Field>
           )}

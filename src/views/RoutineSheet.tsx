@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { CategoryChips, EstimateChips, WeekdayToggles } from '../components/pickers'
-import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputClass } from '../components/ui'
+import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import { archiveRoutine, createRoutine, updateRoutine } from '../domain/actions'
 import { loadRoutineDetail } from '../domain/queries'
@@ -148,7 +148,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
               max={365}
               value={form.interval}
               onChange={(e) => set({ interval: Math.max(2, Math.round(Number(e.target.value) || 2)) })}
-              className={`${inputClass} w-20`}
+              className={`${inputBase} w-20 shrink-0`}
             />
             jours, depuis le début de la routine
           </div>

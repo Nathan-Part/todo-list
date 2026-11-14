@@ -227,6 +227,11 @@ export function completeEntry(d: AppDB, entryId: string, nowMs: number): Promise
       needsReview: false,
       reserveSince: undefined,
     })
+    await d.subtasks
+      .where('taskId')
+      .equals(task.id)
+      .filter((s) => s.status === 'todo')
+      .modify({ status: 'done', doneDate: today, doneAt: nowMs })
   })
 }
 
@@ -455,19 +460,30 @@ export function reorderDay(d: AppDB, date: DayKey, orderedIds: string[]): Promis
 /* Chrono et temps réel                                                */
 /* ------------------------------------------------------------------ */
 
-/** Lance le chrono ; en lancer un autre met le précédent en pause (RG-61). */
-export function startTimer(d: AppDB, entryId: string, nowMs: number): Promise<void> {
+/**
+ * Lance le chrono ; en lancer un autre met le précédent en pause (RG-61).
+ * Sur une tâche découpée, le chrono porte sur une sous-tâche : la première à faire par défaut (RG-53).
+ */
+export function startTimer(d: AppDB, entryId: string, nowMs: number, subtaskId?: string): Promise<void> {
   return tx(d, async () => {
     const e = await d.entries.get(entryId)
     if (!e || e.status !== 'todo') return
+    let sub = subtaskId
+    if (!sub && e.taskId) {
+      const subs = (await d.subtasks.where('taskId').equals(e.taskId).toArray())
+        .filter((s) => s.status === 'todo')
+        .sort((a, b) => a.position - b.position)
+      sub = subs[0]?.id
+    }
     const running = await d.sessions.where('running').equals(1).first()
     if (running) {
-      if (running.entryId === entryId) return
+      if (running.entryId === entryId && running.subtaskId === sub) return
       await closeSession(d, running, nowMs)
     }
     await d.sessions.add({
       id: newId(),
       entryId,
+      subtaskId: sub,
       date: e.date,
       startAt: nowMs,
       durationSec: 0,
@@ -513,6 +529,102 @@ export async function updateSession(d: AppDB, id: string, changes: Partial<Pick<
 
 export async function deleteSession(d: AppDB, id: string) {
   await d.sessions.delete(id)
+}
+
+/* ------------------------------------------------------------------ */
+/* Sous-tâches (RG-50 à RG-55)                                         */
+/* ------------------------------------------------------------------ */
+
+/** La durée d'une tâche découpée est la somme de celles de ses sous-tâches (RG-52). */
+async function syncTaskEstimate(d: AppDB, taskId: string) {
+  const subs = await d.subtasks.where('taskId').equals(taskId).toArray()
+  if (subs.length === 0) return
+  const withEstimate = subs.filter((s) => s.estimateMin)
+  await d.tasks.update(taskId, {
+    estimateMin: withEstimate.length ? withEstimate.reduce((n, s) => n + (s.estimateMin ?? 0), 0) : undefined,
+  })
+}
+
+export function addSubtask(
+  d: AppDB,
+  taskId: string,
+  input: { name: string; estimateMin?: number },
+): Promise<string> {
+  return tx(d, async () => {
+    const subs = await d.subtasks.where('taskId').equals(taskId).toArray()
+    const id = newId()
+    await d.subtasks.add({
+      id,
+      taskId,
+      name: input.name.trim(),
+      estimateMin: input.estimateMin,
+      status: 'todo',
+      position: subs.reduce((m, s) => Math.max(m, s.position), 0) + 1000,
+    })
+    await syncTaskEstimate(d, taskId)
+    // une sous-tâche ajoutée à une tâche faite la rouvre
+    const task = await d.tasks.get(taskId)
+    if (task?.status === 'done') {
+      const done = (await d.entries.where('taskId').equals(taskId).toArray()).find((e) => e.status === 'done')
+      if (done) await reopenEntry(d, done.id, Date.now())
+    }
+    return id
+  })
+}
+
+export function updateSubtask(d: AppDB, id: string, changes: { name?: string; estimateMin?: number }): Promise<void> {
+  return tx(d, async () => {
+    const sub = await d.subtasks.get(id)
+    if (!sub) return
+    await d.subtasks.update(id, changes)
+    await syncTaskEstimate(d, sub.taskId)
+  })
+}
+
+/** Le temps déjà passé sur une sous-tâche supprimée reste compté sur la tâche. */
+export function deleteSubtask(d: AppDB, id: string, nowMs: number): Promise<void> {
+  return tx(d, async () => {
+    const sub = await d.subtasks.get(id)
+    if (!sub) return
+    const running = await d.sessions.where('running').equals(1).first()
+    if (running?.subtaskId === id) await closeSession(d, running, nowMs)
+    await d.subtasks.delete(id)
+    const left = await d.subtasks.where('taskId').equals(sub.taskId).count()
+    if (left > 0) await syncTaskEstimate(d, sub.taskId)
+  })
+}
+
+/**
+ * Coche ou décoche une sous-tâche. La dernière cochée termine la tâche (RG-54).
+ * Retourne true si la tâche vient d'être terminée.
+ */
+export function toggleSubtask(d: AppDB, id: string, nowMs: number): Promise<boolean> {
+  return tx(d, async () => {
+    const today = dayKeyOf(nowMs)
+    const sub = await d.subtasks.get(id)
+    if (!sub) return false
+    const running = await d.sessions.where('running').equals(1).first()
+    if (sub.status === 'todo') {
+      if (running?.subtaskId === id) await closeSession(d, running, nowMs)
+      await d.subtasks.update(id, { status: 'done', doneDate: today, doneAt: nowMs })
+      const subs = await d.subtasks.where('taskId').equals(sub.taskId).toArray()
+      if (subs.every((s) => s.status === 'done')) {
+        const task = await d.tasks.get(sub.taskId)
+        if (task?.status === 'todo') {
+          await completeTask(d, sub.taskId, nowMs)
+          return true
+        }
+      }
+      return false
+    }
+    await d.subtasks.update(id, { status: 'todo', doneDate: undefined, doneAt: undefined })
+    const task = await d.tasks.get(sub.taskId)
+    if (task?.status === 'done') {
+      const done = (await d.entries.where('taskId').equals(sub.taskId).toArray()).find((e) => e.status === 'done')
+      if (done) await reopenEntry(d, done.id, nowMs)
+    }
+    return false
+  })
 }
 
 /* ------------------------------------------------------------------ */

@@ -20,6 +20,7 @@ export interface Raw {
   routines: Routine[]
   pauses: Pause[]
   sessions: Map<string, Session[]>
+  subtasks: Map<string, Subtask[]>
 }
 
 export async function fetchRaw(
@@ -41,6 +42,13 @@ export async function fetchRaw(
         .toArray()
     : []
 
+  const subtaskList = taskIds.length ? await d.subtasks.where('taskId').anyOf(taskIds).toArray() : []
+  const subtasks = new Map<string, Subtask[]>()
+  for (const st of subtaskList) {
+    const list = subtasks.get(st.taskId)
+    if (list) list.push(st)
+    else subtasks.set(st.taskId, [st])
+  }
   const sessions = new Map<string, Session[]>()
   for (const s of sessionList) {
     const list = sessions.get(s.entryId)
@@ -54,6 +62,7 @@ export async function fetchRaw(
     routines,
     pauses,
     sessions,
+    subtasks,
   }
 }
 
@@ -83,6 +92,11 @@ function toItem(e: Entry, raw: Raw): DayItem {
     runningSince: running?.startAt,
     hasSessions: own.length > 0,
     taskDeleted: task?.status === 'deleted',
+    subtasksDone: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).filter((s) => s.status === 'done').length : 0,
+    subtasksTotal: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).length : 0,
+    segments: own
+      .filter((s) => s.startAt !== undefined)
+      .map((s) => ({ start: s.startAt!, end: s.running === 1 ? undefined : (s.endAt ?? s.startAt! + s.durationSec * 1000) })),
   }
 }
 
@@ -103,6 +117,9 @@ function virtualItem(r: Routine, date: DayKey): DayItem {
     spentSec: 0,
     hasSessions: false,
     taskDeleted: false,
+    subtasksDone: 0,
+    subtasksTotal: 0,
+    segments: [],
   }
 }
 

@@ -22,6 +22,10 @@ export interface DayItem {
   runningSince?: number
   hasSessions: boolean
   taskDeleted: boolean
+  subtasksDone: number
+  subtasksTotal: number
+  /** Intervalles chronométrés [début, fin] en ms (fin absente = en cours), pour la frise. */
+  segments: { start: number; end?: number }[]
 }
 
 export interface DayStats {

@@ -113,7 +113,7 @@ button {
 
 @keyframes toast-in {
   from {
-    transform: translateY(12px);
+    transform: translateY(-12px);
     opacity: 0;
   }
   to {

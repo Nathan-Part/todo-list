@@ -93,6 +93,45 @@ function Banner() {
   )
 }
 
+/** Frise du temps réel : quand tu as travaillé sur quoi, d'après le chrono. */
+function Timeline({ items, day, now }: { items: DayItem[]; day: string; now: number }) {
+  const { byId } = useCategories()
+  const [y, m, d] = day.split('-').map(Number)
+  const dayStart = new Date(y, m - 1, d).getTime()
+  const segs = items.flatMap((i) =>
+    i.segments.map((s) => ({
+      start: (s.start - dayStart) / 3_600_000,
+      end: ((s.end ?? now) - dayStart) / 3_600_000,
+      color: (i.categoryId && byId.get(i.categoryId)?.color) || 'var(--accent)',
+      name: i.name,
+    })),
+  )
+  if (segs.length === 0) return null
+  const from = Math.max(0, Math.min(7, Math.floor(Math.min(...segs.map((s) => s.start)))))
+  const to = Math.min(24, Math.max(22, Math.ceil(Math.max(...segs.map((s) => s.end)))))
+  const pct = (h: number) => `${((Math.min(to, Math.max(from, h)) - from) / (to - from)) * 100}%`
+  return (
+    <div className="mt-3">
+      <div className="text-xs text-muted">Frise</div>
+      <div className="relative mt-1 h-3 overflow-hidden rounded-full bg-line" aria-label="Frise du temps réel">
+        {segs.map((s, i) => (
+          <span
+            key={i}
+            title={s.name}
+            className="absolute inset-y-0 rounded-full"
+            style={{ left: pct(s.start), width: `max(3px, calc(${pct(s.end)} - ${pct(s.start)}))`, backgroundColor: s.color }}
+          />
+        ))}
+      </div>
+      <div className="mt-0.5 flex justify-between text-[10px] tabular text-muted">
+        <span>{from} h</span>
+        <span>{Math.round((from + to) / 2)} h</span>
+        <span>{to} h</span>
+      </div>
+    </div>
+  )
+}
+
 function KeyFigures({ items, mode, now, day }: { items: DayItem[]; mode: RowMode; now: number; day: string }) {
   const capacity = useCapacity()
   const [open, setOpen] = useState(false)
@@ -154,6 +193,7 @@ function KeyFigures({ items, mode, now, day }: { items: DayItem[]; mode: RowMode
           </div>
         </div>
       )}
+      {mode !== 'future' && <Timeline items={items} day={day} now={now} />}
       {open && (
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 border-t border-line pt-3 text-xs">
           <dt className="text-muted">Temps estimé (total)</dt>
@@ -213,6 +253,16 @@ export function DayView() {
     const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
     setOrder(next)
     void reorderDay(db, selectedDay, next)
+  }
+
+  const tomorrow = addDays(today, 1)
+  const swipeFor = (item: DayItem): RowProps['swipeActions'] => {
+    if (mode === 'past' || item.status !== 'todo') return undefined
+    if (item.kind === 'routine') return [{ label: 'Sauter', tone: 'muted', onClick: () => void actions.skip(item) }]
+    const list: NonNullable<RowProps['swipeActions']> = []
+    if (item.date !== tomorrow) list.push({ label: 'Demain', tone: 'accent', onClick: () => void actions.postpone(item, tomorrow) })
+    list.push({ label: 'Réserve', tone: 'warn', onClick: () => void actions.postpone(item, 'reserve') })
+    return list
   }
 
   const rowProps = {
@@ -289,7 +339,7 @@ export function DayView() {
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={groups.open.map((i) => i.id)} strategy={verticalListSortingStrategy}>
               {groups.open.map((item) => (
-                <SortableRow key={item.id} item={item} {...rowProps} />
+                <SortableRow key={item.id} item={item} {...rowProps} swipeActions={swipeFor(item)} />
               ))}
             </SortableContext>
           </DndContext>

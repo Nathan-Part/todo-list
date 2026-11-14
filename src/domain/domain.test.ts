@@ -538,3 +538,49 @@ describe('calibrage et régularité', () => {
     expect(detail.grid.length % 7).toBe(0)
   })
 })
+
+describe('sous-tâches', () => {
+  it('durée = somme des sous-tâches ; la dernière cochée termine la tâche', async () => {
+    const { addSubtask, toggleSubtask } = await import('./actions')
+    const id = await addTask(db, { name: 'Dossier CAF', estimateMin: 10, plan: MON }, at(MON))
+    const a = await addSubtask(db, id, { name: 'Pièces', estimateMin: 10 })
+    const b = await addSubtask(db, id, { name: 'Formulaire', estimateMin: 15 })
+    expect((await db.tasks.get(id))!.estimateMin).toBe(25)
+    expect(await toggleSubtask(db, a, at(MON, 10))).toBe(false)
+    expect((await db.tasks.get(id))!.status).toBe('todo')
+    expect(await toggleSubtask(db, b, at(MON, 11))).toBe(true)
+    expect((await db.tasks.get(id))!.status).toBe('done')
+    // décocher rouvre la tâche
+    await toggleSubtask(db, b, at(MON, 12))
+    expect((await db.tasks.get(id))!.status).toBe('todo')
+  })
+
+  it('le chrono porte sur la première sous-tâche à faire, et le temps compte pour la tâche', async () => {
+    const { addSubtask, toggleSubtask } = await import('./actions')
+    const id = await addTask(db, { name: 'T', plan: MON }, at(MON))
+    const a = await addSubtask(db, id, { name: 'A', estimateMin: 20 })
+    await addSubtask(db, id, { name: 'B', estimateMin: 20 })
+    const e = taskEntryId(id, MON)
+    await startTimer(db, e, at(MON, 9))
+    expect((await db.sessions.where('running').equals(1).first())!.subtaskId).toBe(a)
+    await toggleSubtask(db, a, at(MON, 9, 15)) // cocher arrête son chrono
+    expect(await db.sessions.where('running').equals(1).count()).toBe(0)
+    const items = await loadDayItems(db, MON, MON)
+    expect(items[0].spentSec).toBe(15 * 60)
+    expect(items[0]).toMatchObject({ subtasksDone: 1, subtasksTotal: 2 })
+  })
+
+  it('tâche partiellement faite : part en réserve avec ce qui reste ; cocher la tâche termine tout', async () => {
+    const { addSubtask, toggleSubtask } = await import('./actions')
+    await runRollover(db, at(MON))
+    const id = await addTask(db, { name: 'T', plan: MON }, at(MON))
+    const a = await addSubtask(db, id, { name: 'A' })
+    const b = await addSubtask(db, id, { name: 'B' })
+    await toggleSubtask(db, a, at(MON, 10))
+    await runRollover(db, at(TUE))
+    expect((await db.tasks.get(id))!.needsReview).toBe(true)
+    expect((await db.subtasks.get(a))!.doneDate).toBe(MON)
+    await completeTask(db, id, at(TUE, 9))
+    expect((await db.subtasks.get(b))!.status).toBe('done')
+  })
+})

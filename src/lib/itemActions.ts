@@ -5,14 +5,16 @@ import {
   completeEntry,
   completeTask,
   pauseTimer,
+  postponeEntry,
   reopenEntry,
+  skipEntry,
   startTimer,
   taskEntryId,
 } from '../domain/actions'
 import { dayKeyOf } from '../domain/dates'
 import type { DayItem } from '../domain/stats'
 import type { Task } from '../domain/types'
-import { formatMin } from './format'
+import { dayShort, formatMin } from './format'
 import { useNav } from './nav'
 import { useToast } from './toast'
 
@@ -95,5 +97,25 @@ export function useItemActions() {
     [setSheet],
   )
 
-  return { complete, completeTaskById, toggle, timer, open }
+  const postpone = useCallback(
+    async (item: DayItem, target: string) => {
+      try {
+        await postponeEntry(db, item.id, target, Date.now())
+        toast({ text: target === 'reserve' ? 'Renvoyée en réserve' : `Reportée au ${dayShort(target)}`, duration: 2500 })
+      } catch (e) {
+        toast({ text: e instanceof Error ? e.message : 'Action impossible', duration: 3500 })
+      }
+    },
+    [toast],
+  )
+
+  const skip = useCallback(
+    async (item: DayItem) => {
+      await skipEntry(db, item.id, Date.now())
+      toast({ text: 'Occurrence sautée', duration: 2500 })
+    },
+    [toast],
+  )
+
+  return { complete, completeTaskById, toggle, timer, open, postpone, skip }
 }

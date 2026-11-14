@@ -106,8 +106,10 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   )
 }
 
-export const inputClass =
-  'w-full rounded-xl border border-line bg-bg px-3.5 py-2.5 text-ink outline-none focus:border-accent placeholder:text-muted'
+/** Champ sans largeur : à compléter par une largeur explicite (w-20, w-auto, flex-1…). */
+export const inputBase =
+  'rounded-xl border border-line bg-bg px-3.5 py-2.5 text-ink outline-none focus:border-accent placeholder:text-muted'
+export const inputClass = `${inputBase} w-full`
 
 /* ---------------------------------------------------------------- */
 /* Feuille modale                                                    */
@@ -178,7 +180,7 @@ export function Sheet({
             <Icon name="x" />
           </button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-5">{children}</div>
         {footer ? (
           <div className="shrink-0 border-t border-line px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
             {footer}

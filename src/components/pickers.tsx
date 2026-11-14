@@ -1,9 +1,17 @@
 import { useState } from 'react'
 import { db } from '../db'
-import { addSession, deleteSession } from '../domain/actions'
-import type { Category, Session } from '../domain/types'
+import {
+  addSession,
+  addSubtask,
+  deleteSession,
+  deleteSubtask,
+  pauseTimer,
+  startTimer,
+  toggleSubtask,
+} from '../domain/actions'
+import type { Category, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
-import { CategoryDot, Chip, Icon, btnSoft, inputClass } from './ui'
+import { CategoryDot, Chip, Icon, btnSoft, inputBase } from './ui'
 
 const PRESETS = [15, 30, 45, 60, 90, 120]
 
@@ -45,7 +53,7 @@ export function EstimateChips({
             min={1}
             max={999}
             placeholder="Minutes"
-            className={`${inputClass} w-28`}
+            className={`${inputBase} w-28 shrink-0`}
             value={value ?? ''}
             onChange={(e) => onChange(e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined)}
           />
@@ -163,14 +171,116 @@ export function SessionsEditor({ entryId, sessions }: { entryId?: string; sessio
             value={minutes}
             onChange={(e) => setMinutes(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void add()}
-            className={`${inputClass} w-28`}
+            className={`${inputBase} w-28 shrink-0`}
           />
           <button type="button" className={btnSoft} onClick={() => void add()} disabled={!Number(minutes)}>
             <Icon name="plus" className="size-4" />
-            Ajouter du temps
+            Ajouter
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Étapes d'une tâche, chacune avec sa durée et son chrono (RG-50 à 54). */
+export function SubtasksEditor({
+  taskId,
+  subtasks,
+  timerEntryId,
+  runningSubtaskId,
+  onStart,
+}: {
+  taskId: string
+  subtasks: Subtask[]
+  /** Passage du jour sur lequel lancer le chrono ; absent = chrono indisponible. */
+  timerEntryId?: string
+  runningSubtaskId?: string
+  onStart?: (entryId: string) => void
+}) {
+  const [name, setName] = useState('')
+  const [minutes, setMinutes] = useState('')
+  const add = async () => {
+    if (!name.trim()) return
+    const m = Number(minutes)
+    await addSubtask(db, taskId, { name, estimateMin: m > 0 ? Math.round(m) : undefined })
+    setName('')
+    setMinutes('')
+  }
+  return (
+    <div>
+      {subtasks.length > 0 && (
+        <ul className="mb-2 divide-y divide-line rounded-2xl border border-line">
+          {subtasks.map((st) => {
+            const done = st.status === 'done'
+            const running = runningSubtaskId === st.id
+            return (
+              <li key={st.id} className="flex items-center gap-2.5 px-3 py-2">
+                <button
+                  type="button"
+                  aria-label={done ? 'Décocher' : 'Cocher'}
+                  onClick={() => void toggleSubtask(db, st.id, Date.now())}
+                  className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 ${
+                    done ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
+                  }`}
+                >
+                  <Icon name="check" className="size-3" strokeWidth={3} />
+                </button>
+                <span className={`min-w-0 flex-1 truncate text-[15px] ${done ? 'text-muted line-through' : ''}`}>
+                  {st.name}
+                </span>
+                {st.estimateMin ? <span className="text-xs text-muted tabular">{formatMin(st.estimateMin)}</span> : null}
+                {timerEntryId && !done && (
+                  <button
+                    type="button"
+                    aria-label={running ? 'Mettre en pause' : `Chrono sur ${st.name}`}
+                    onClick={async () => {
+                      if (running) await pauseTimer(db, Date.now())
+                      else {
+                        await startTimer(db, timerEntryId, Date.now(), st.id)
+                        onStart?.(timerEntryId)
+                      }
+                    }}
+                    className={`flex size-7 items-center justify-center rounded-full ${running ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}
+                  >
+                    <Icon name={running ? 'pause' : 'play'} className="size-3" fill={!running} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-label={`Supprimer ${st.name}`}
+                  onClick={() => void deleteSubtask(db, st.id, Date.now())}
+                  className="rounded-full p-1 text-muted"
+                >
+                  <Icon name="x" className="size-4" />
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      <form
+        className="flex items-center gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void add()
+        }}
+      >
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nouvelle étape" className={`${inputBase} min-w-0 flex-1`} />
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          value={minutes}
+          onChange={(e) => setMinutes(e.target.value)}
+          placeholder="min"
+          aria-label="Durée en minutes"
+          className={`${inputBase} w-20 shrink-0`}
+        />
+        <button type="submit" className={btnSoft} aria-label="Ajouter l'étape" disabled={!name.trim()}>
+          <Icon name="plus" className="size-4" />
+        </button>
+      </form>
     </div>
   )
 }

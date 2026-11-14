@@ -1,4 +1,4 @@
-import type { HTMLAttributes, Ref } from 'react'
+import { type HTMLAttributes, type Ref, useRef, useState } from 'react'
 import type { DayItem } from '../domain/stats'
 import { liveSpentSec } from '../domain/stats'
 import type { Category } from '../domain/types'
@@ -18,7 +18,12 @@ interface Props {
   rootRef?: Ref<HTMLDivElement>
   rootProps?: HTMLAttributes<HTMLDivElement>
   dragging?: boolean
+  /** Actions révélées en glissant la ligne vers la gauche. */
+  swipeActions?: { label: string; tone: 'accent' | 'warn' | 'muted'; onClick: () => void }[]
 }
+
+const ACTION_W = 84
+const TONES = { accent: 'bg-accent text-on-accent', warn: 'bg-warn text-surface', muted: 'bg-muted text-surface' }
 
 function statusText(item: DayItem): string | null {
   switch (item.status) {
@@ -46,7 +51,39 @@ export function ItemRow({
   rootRef,
   rootProps,
   dragging,
+  swipeActions,
 }: Props) {
+  const [dx, setDx] = useState(0)
+  const [anim, setAnim] = useState(false)
+  const start = useRef<{ x: number; y: number; base: number; dir?: 'h' | 'v' } | null>(null)
+  const maxOpen = (swipeActions?.length ?? 0) * ACTION_W
+  const swipeHandlers = swipeActions?.length
+    ? {
+        onTouchStart: (e: React.TouchEvent) => {
+          start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, base: dx }
+          setAnim(false)
+        },
+        onTouchMove: (e: React.TouchEvent) => {
+          const st = start.current
+          if (!st) return
+          const mx = e.touches[0].clientX - st.x
+          const my = e.touches[0].clientY - st.y
+          if (!st.dir && (Math.abs(mx) > 10 || Math.abs(my) > 10)) st.dir = Math.abs(mx) > Math.abs(my) ? 'h' : 'v'
+          if (st.dir === 'h') setDx(Math.max(-maxOpen - 24, Math.min(0, st.base + mx)))
+        },
+        onTouchEnd: () => {
+          const st = start.current
+          start.current = null
+          if (!st || st.dir !== 'h') return
+          setAnim(true)
+          setDx((cur) => (cur < -maxOpen / 2 ? -maxOpen : 0))
+        },
+      }
+    : {}
+  const close = () => {
+    setAnim(true)
+    setDx(0)
+  }
   const isDone = item.status === 'done'
   const isOpen = item.status === 'todo'
   const cat = item.categoryId ? categories.get(item.categoryId) : undefined
@@ -80,6 +117,13 @@ export function ItemRow({
       )
     }
   }
+  if (item.subtasksTotal > 0) {
+    meta.push(
+      <span key="st" className="tabular">
+        {item.subtasksDone}/{item.subtasksTotal} étapes
+      </span>,
+    )
+  }
   if (cat) {
     meta.push(
       <span key="c" className="inline-flex items-center gap-1">
@@ -90,12 +134,38 @@ export function ItemRow({
   }
 
   return (
+    <div ref={rootRef} {...rootProps} className={`relative overflow-hidden rounded-2xl ${rootProps?.className ?? ''}`}>
+      {swipeActions && dx < 0 && (
+        <div className="absolute inset-y-0 right-0 flex">
+          {swipeActions.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              onClick={() => {
+                close()
+                a.onClick()
+              }}
+              className={`flex items-center justify-center text-sm font-semibold ${TONES[a.tone]}`}
+              style={{ width: ACTION_W }}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
     <div
-      ref={rootRef}
-      {...rootProps}
-      className={`flex items-center gap-3 rounded-2xl border bg-surface px-3 py-2.5 ${
-        dragging ? 'border-accent shadow-lg' : 'border-line/70'
-      } ${rootProps?.className ?? ''}`}
+      {...swipeHandlers}
+      onClickCapture={(e) => {
+        if (dx !== 0) {
+          e.stopPropagation()
+          e.preventDefault()
+          close()
+        }
+      }}
+      style={{ transform: dx ? `translateX(${dx}px)` : undefined, touchAction: 'pan-y' }}
+      className={`relative flex items-center gap-3 rounded-2xl border bg-surface px-3 py-2.5 ${
+        anim ? 'transition-transform duration-200' : ''
+      } ${dragging ? 'border-accent shadow-lg' : 'border-line/70'}`}
     >
       {/* case à cocher */}
       {mode === 'today' && (isOpen || isDone) ? (
@@ -168,6 +238,7 @@ export function ItemRow({
           </button>
         </div>
       )}
+    </div>
     </div>
   )
 }

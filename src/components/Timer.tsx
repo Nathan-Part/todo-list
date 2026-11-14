@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
-import { pauseTimer, startTimer } from '../domain/actions'
+import { pauseTimer, startTimer, toggleSubtask } from '../domain/actions'
 import { loadItem } from '../domain/queries'
 import { liveSpentSec } from '../domain/stats'
 import { formatClock, formatMin } from '../lib/format'
-import { useNow, useRunning } from '../lib/hooks'
+import { useNow, useRunning, useRunningSession } from '../lib/hooks'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
 import { Icon, btnGhost, btnPrimary } from './ui'
@@ -50,8 +50,16 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
   }, [entryId])
   const now = useNow(1000)
   const { complete } = useItemActions()
+  const session = useRunningSession()
+  const subtasks = useLiveQuery(async () => {
+    const e = await db.entries.get(entryId)
+    if (!e?.taskId) return []
+    return (await db.subtasks.where('taskId').equals(e.taskId).toArray()).sort((a, b) => a.position - b.position)
+  }, [entryId]) ?? []
 
   if (!item) return null
+  const currentSub =
+    session?.entryId === entryId && session.subtaskId ? subtasks.find((x) => x.id === session.subtaskId) : undefined
   const running = item.runningSince !== undefined
   const spent = liveSpentSec(item, now)
   const est = item.estimateMin ? item.estimateMin * 60 : undefined
@@ -59,7 +67,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
   const ratio = est ? Math.min(1, spent / est) : 0
 
   return (
-    <div className="anim-fade fixed inset-0 z-50 flex flex-col bg-bg px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
+    <div role="dialog" aria-modal="true" aria-label="Chrono" className="anim-fade fixed inset-0 z-50 flex flex-col bg-bg px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))]">
       <div className="flex items-center justify-between">
         <button type="button" onClick={onClose} aria-label="Réduire" className="-ml-2 rounded-full p-2 text-muted active:bg-surface">
           <Icon name="down" className="size-6" />
@@ -70,7 +78,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
         <span className="size-10" />
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto py-4 text-center">
         <div className="max-w-xs text-xl font-semibold">{item.name}</div>
         {item.kind === 'routine' && <div className="mt-1 text-sm text-muted">routine</div>}
         <div className="mt-8 text-7xl font-light tabular tracking-tight">{formatClock(spent)}</div>
@@ -91,7 +99,48 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
         ) : (
           <div className="mt-3 text-sm text-warn">Pas de durée estimée</div>
         )}
-        {note && <p className="mt-8 max-w-xs whitespace-pre-wrap text-sm text-muted">{note}</p>}
+        {subtasks.length > 0 && (
+          <div className="mt-8 w-full max-w-xs text-left">
+            {currentSub && (
+              <div className="mb-2 text-center text-sm">
+                Étape en cours : <span className="font-semibold">{currentSub.name}</span>
+              </div>
+            )}
+            <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
+              {subtasks.map((st) => (
+                <li key={st.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                  <button
+                    type="button"
+                    aria-label={st.status === 'done' ? 'Décocher' : 'Cocher'}
+                    onClick={async () => {
+                      const wasCurrent = currentSub?.id === st.id
+                      const finished = await toggleSubtask(db, st.id, Date.now())
+                      if (finished) onClose()
+                      else if (wasCurrent && st.status === 'todo') await startTimer(db, entryId, Date.now())
+                    }}
+                    className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 ${
+                      st.status === 'done' ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
+                    }`}
+                  >
+                    <Icon name="check" className="size-3" strokeWidth={3} />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={st.status === 'done'}
+                    onClick={() => void startTimer(db, entryId, Date.now(), st.id)}
+                    className={`min-w-0 flex-1 truncate text-left ${st.status === 'done' ? 'text-muted line-through' : ''} ${
+                      currentSub?.id === st.id ? 'font-semibold text-accent' : ''
+                    }`}
+                  >
+                    {st.name}
+                  </button>
+                  {st.estimateMin ? <span className="text-xs text-muted">{formatMin(st.estimateMin)}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {note && <p className="mt-6 max-w-xs whitespace-pre-wrap text-sm text-muted">{note}</p>}
       </div>
 
       <div className="mx-auto flex w-full max-w-sm gap-3">

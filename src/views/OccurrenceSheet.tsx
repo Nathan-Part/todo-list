@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useState } from 'react'
 import { DayPicker } from '../components/DayPicker'
 import { SessionsEditor } from '../components/pickers'
 import { Field, Icon, Sheet, btnGhost, btnPrimary, btnSoft } from '../components/ui'
@@ -34,12 +35,16 @@ export function OccurrenceSheet({ entryId, onClose }: { entryId: string; onClose
   const running = useRunningSession()
   const { complete } = useItemActions()
   const toast = useToast()
+  const [pickDay, setPickDay] = useState(false)
 
   if (!item || !routine) return <Sheet title="…" onClose={onClose}>{null}</Sheet>
 
   const isTodo = item.status === 'todo'
+  const moveMin = item.date > today ? today : addDays(today, 1)
+  const blocked = (d: string) =>
+    d === item.date || (isRoutineScheduledOn(routine, d) && !isPaused(pauses, routine.id, d))
+  const canMove = Array.from({ length: 14 }, (_, i) => addDays(moveMin, i)).some((d) => !blocked(d))
   const timerOn = running?.entryId === item.id
-  const tomorrow = addDays(today, 1)
 
   const move = async (target: string) => {
     try {
@@ -119,35 +124,38 @@ export function OccurrenceSheet({ entryId, onClose }: { entryId: string; onClose
       )}
 
       {isTodo && (
-        <>
-          <Field label="Sauter ou déplacer">
-            <div className="mb-3">
-              <button
-                type="button"
-                className={btnSoft}
-                onClick={async () => {
-                  await skipEntry(db, item.id, Date.now())
-                  toast({ text: 'Occurrence sautée (exclue des statistiques)', duration: 3000 })
-                  onClose()
-                }}
-              >
-                <Icon name="skip" className="size-4" />
-                Sauter cette occurrence
+        <Field label="Sauter ou déplacer">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={btnSoft}
+              onClick={async () => {
+                await skipEntry(db, item.id, Date.now())
+                toast({ text: 'Occurrence sautée (exclue des statistiques)', duration: 3000 })
+                onClose()
+              }}
+            >
+              <Icon name="skip" className="size-4" />
+              Sauter
+            </button>
+            {canMove && (
+              <button type="button" className={pickDay ? btnPrimary : btnGhost} onClick={() => setPickDay((v) => !v)}>
+                <Icon name="calendar" className="size-4" />
+                Déplacer
               </button>
+            )}
+          </div>
+          {canMove && pickDay && (
+            <div className="mt-3">
+              <DayPicker today={today} min={moveMin} disabled={blocked} onPick={(d) => void move(d)} />
             </div>
-            <DayPicker
-              today={today}
-              min={item.date > today ? today : tomorrow}
-              disabled={(d) =>
-                d === item.date || (isRoutineScheduledOn(routine, d) && !isPaused(pauses, routine.id, d))
-              }
-              onPick={(d) => void move(d)}
-            />
+          )}
+          {!canMove && (
             <p className="mt-2 text-xs text-muted">
-              Une routine ne se déplace que vers un jour où elle n'a pas déjà son occurrence.
+              Cette routine revient chaque jour : elle ne se déplace pas, tu peux la sauter.
             </p>
-          </Field>
-        </>
+          )}
+        </Field>
       )}
 
       {!item.virtual && (

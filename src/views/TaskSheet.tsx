@@ -1,8 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { DayPicker } from '../components/DayPicker'
-import { CategoryChips, EstimateChips, SessionsEditor } from '../components/pickers'
-import { Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputClass } from '../components/ui'
+import { CategoryChips, EstimateChips, SessionsEditor, SubtasksEditor } from '../components/pickers'
+import { Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import {
   deleteTask,
@@ -16,7 +16,7 @@ import {
 import { addDays, diffDays } from '../domain/dates'
 import { loadTaskDetail } from '../domain/queries'
 import type { Entry } from '../domain/types'
-import { dayLabel, dayShort, dayTitle, plural } from '../lib/format'
+import { dayLabel, dayShort, dayTitle, formatMin, plural } from '../lib/format'
 import { useCategories, useRunningSession } from '../lib/hooks'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
@@ -47,6 +47,7 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
   const { completeTaskById } = useItemActions()
   const toast = useToast()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [pickDay, setPickDay] = useState(false)
 
   if (!detail) return <Sheet title="…" onClose={onClose}>{null}</Sheet>
   const { task, history, sessions, openEntry } = detail
@@ -170,10 +171,39 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
         </div>
       )}
 
+      {task.status !== 'deleted' && (
+        <>
+          {detail.subtasks.length === 0 ? (
+            <Field label="Durée estimée">
+              <EstimateChips value={task.estimateMin} onChange={(v) => void updateTask(db, task.id, { estimateMin: v })} />
+            </Field>
+          ) : null}
+          <Field label={detail.subtasks.length ? `Sous-tâches · ${detail.subtasks.filter((x) => x.status === 'done').length}/${detail.subtasks.length}${task.estimateMin ? ` · ${formatMin(task.estimateMin)}` : ''}` : 'Sous-tâches'}>
+            <SubtasksEditor
+              taskId={task.id}
+              subtasks={detail.subtasks}
+              timerEntryId={isTodo && openEntry && openEntry.date <= today ? openEntry.id : undefined}
+              runningSubtaskId={timerOn ? running?.subtaskId : undefined}
+              onStart={(id) => {
+                onClose()
+                setFocus(id)
+              }}
+            />
+          </Field>
+          <Field label="Catégorie">
+            <CategoryChips
+              value={task.categoryId}
+              onChange={(v) => void updateTask(db, task.id, { categoryId: v })}
+              categories={categories}
+            />
+          </Field>
+        </>
+      )}
+
       {/* report / planification */}
       {isTodo && (
         <Field label={openEntry ? 'Reporter' : 'Planifier'}>
-          <div className="mb-3 flex flex-wrap gap-2">
+          <div className="mb-2 flex flex-wrap gap-2">
             {openEntry?.date !== today && (
               <button type="button" className={btnSoft} onClick={() => void move(today)}>
                 Aujourd'hui
@@ -189,35 +219,31 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
                 Réserve
               </button>
             )}
+            <button type="button" className={pickDay ? btnPrimary : btnGhost} onClick={() => setPickDay((v) => !v)}>
+              <Icon name="calendar" className="size-4" />
+              Autre jour
+            </button>
           </div>
-          <DayPicker
-            today={today}
-            min={tomorrow}
-            disabled={(d) => d === openEntry?.date}
-            onPick={(d) => void move(d)}
-          />
+          {pickDay && (
+            <DayPicker
+              today={today}
+              min={tomorrow}
+              disabled={(d) => d === openEntry?.date}
+              onPick={(d) => void move(d)}
+            />
+          )}
         </Field>
       )}
 
       {task.status !== 'deleted' && (
         <>
-          <Field label="Durée estimée">
-            <EstimateChips value={task.estimateMin} onChange={(v) => void updateTask(db, task.id, { estimateMin: v })} />
-          </Field>
-          <Field label="Catégorie">
-            <CategoryChips
-              value={task.categoryId}
-              onChange={(v) => void updateTask(db, task.id, { categoryId: v })}
-              categories={categories}
-            />
-          </Field>
           <Field label="Échéance">
             <div className="flex items-center gap-2">
               <input
                 type="date"
                 value={task.dueDate ?? ''}
                 onChange={(e) => void updateTask(db, task.id, { dueDate: e.target.value || undefined })}
-                className={`${inputClass} w-auto`}
+                className={`${inputBase} w-auto`}
               />
               {task.dueDate && (
                 <button type="button" className="text-sm text-muted underline" onClick={() => void updateTask(db, task.id, { dueDate: undefined })}>
