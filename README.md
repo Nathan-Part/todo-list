@@ -106,4 +106,4 @@ To use it on an iPhone: deploy `dist/` to any static host over HTTPS, open it in
 
 ## License
 
-Personal project — feel free to read the code and take ideas from it.
+[MIT](LICENSE)
