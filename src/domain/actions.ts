@@ -788,6 +788,27 @@ export function updateRoutine(d: AppDB, id: string, changes: RoutineChanges, now
   })
 }
 
+export interface RoutineSnapshot {
+  routine: Routine
+  entries: Entry[]
+}
+
+/** Copie de la routine et de ses occurrences à partir d'aujourd'hui, pour annuler une suppression. */
+export async function snapshotRoutine(d: AppDB, id: string, nowMs: number): Promise<RoutineSnapshot | null> {
+  const routine = await d.routines.get(id)
+  if (!routine) return null
+  const today = dayKeyOf(nowMs)
+  const entries = (await d.entries.where('routineId').equals(id).toArray()).filter((e) => e.date >= today)
+  return { routine, entries }
+}
+
+export function restoreRoutine(d: AppDB, snap: RoutineSnapshot): Promise<void> {
+  return tx(d, async () => {
+    await d.routines.put(snap.routine)
+    await d.entries.bulkPut(snap.entries)
+  })
+}
+
 /** Archive la routine : plus aucune occurrence, historique conservé (RG-39). */
 export function archiveRoutine(d: AppDB, id: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
@@ -796,7 +817,7 @@ export function archiveRoutine(d: AppDB, id: string, nowMs: number): Promise<voi
     const open = await d.entries
       .where('routineId')
       .equals(id)
-      .filter((e) => e.status === 'todo' && e.date >= today)
+      .filter((e) => e.date >= today && (e.status === 'todo' || e.status === 'skipped' || e.status === 'postponed'))
       .toArray()
     for (const e of open) if (!(await hasSessions(d, e.id))) await d.entries.delete(e.id)
   })

@@ -294,15 +294,17 @@ export function DayView() {
 
   const tomorrow = addDays(today, 1)
   const swipeFor = (item: DayItem): RowProps['swipeActions'] => {
-    if (item.status === 'skipped' || (item.status === 'deleted' && item.taskId)) {
-      return [{ label: 'Récupérer', tone: 'accent', onClick: () => void actions.recover(item), full: true }]
-    }
+    const del = { label: 'Supprimer', tone: 'bad' as const, onClick: () => void actions.remove(item), full: true }
+    const recover = { label: 'Récupérer', tone: 'accent' as const, onClick: () => void actions.recover(item) }
+    if (item.status === 'deleted') return item.taskId ? [{ ...recover, full: true }] : undefined
+    if (item.status === 'skipped') return [recover, del]
+    if (item.status === 'postponed') return [del]
     if (mode === 'past' || item.status !== 'todo') return undefined
-    if (item.kind === 'routine') return [{ label: 'Sauter', tone: 'muted', onClick: () => void actions.skip(item) }]
+    if (item.kind === 'routine') return [{ label: 'Sauter', tone: 'muted', onClick: () => void actions.skip(item) }, del]
     const list: NonNullable<RowProps['swipeActions']> = []
     if (item.date !== tomorrow) list.push({ label: 'Demain', tone: 'accent', onClick: () => void actions.postpone(item, tomorrow) })
     list.push({ label: 'Réserve', tone: 'warn', onClick: () => void actions.postpone(item, 'reserve') })
-    list.push({ label: 'Supprimer', tone: 'bad', onClick: () => void actions.remove(item), full: true })
+    list.push(del)
     return list
   }
 

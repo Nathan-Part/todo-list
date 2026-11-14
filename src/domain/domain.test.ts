@@ -635,3 +635,18 @@ describe('récupérer une tâche supprimée', () => {
     expect(item).toMatchObject({ status: 'todo', spentSec: 1200 })
   })
 })
+
+describe('supprimer une routine depuis la liste', () => {
+  it('archive la routine et peut être annulé', async () => {
+    const { snapshotRoutine, restoreRoutine } = await import('./actions')
+    const rid = await createRoutine(db, { name: 'Sport', frequency: { type: 'daily' }, startDate: MON }, at(MON))
+    await runRollover(db, at(MON))
+    const snap = (await snapshotRoutine(db, rid, at(MON)))!
+    await archiveRoutine(db, rid, at(MON))
+    expect(await loadDayItems(db, MON, MON)).toHaveLength(0)
+    expect(await loadDayItems(db, WED, MON)).toHaveLength(0)
+    await restoreRoutine(db, snap)
+    expect(await loadDayItems(db, MON, MON)).toHaveLength(1)
+    expect(await loadDayItems(db, WED, MON)).toHaveLength(1)
+  })
+})
