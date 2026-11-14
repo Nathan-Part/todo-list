@@ -11,6 +11,7 @@ import {
   postponeEntry,
   reopenEntry,
   skipEntry,
+  undeleteTask,
   unskipEntry,
   startTimer,
   taskEntryId,
@@ -135,5 +136,15 @@ export function useItemActions() {
     [toast],
   )
 
-  return { complete, completeTaskById, toggle, timer, open, postpone, skip, remove }
+  const recover = useCallback(
+    async (item: DayItem) => {
+      if (item.status === 'skipped') await unskipEntry(db, item.id, Date.now())
+      else if (item.status === 'deleted' && item.taskId) await undeleteTask(db, item.taskId, Date.now())
+      else return
+      toast({ text: 'Récupérée', duration: 2500 })
+    },
+    [toast],
+  )
+
+  return { complete, completeTaskById, toggle, timer, open, postpone, skip, remove, recover }
 }

@@ -621,3 +621,17 @@ describe('annuler une suppression', () => {
     expect(item).toMatchObject({ name: 'A', status: 'todo', spentSec: 600, subtasksTotal: 1 })
   })
 })
+
+describe('récupérer une tâche supprimée', () => {
+  it('une tâche supprimée avec du temps revient à faire sur son jour', async () => {
+    const { undeleteTask } = await import('./actions')
+    const id = await addTask(db, { name: 'A', plan: MON }, at(MON))
+    await startTimer(db, taskEntryId(id, MON), at(MON, 9))
+    await pauseTimer(db, at(MON, 9, 20))
+    await deleteTask(db, id, at(MON, 10))
+    await undeleteTask(db, id, at(MON, 11))
+    expect((await db.tasks.get(id))!.status).toBe('todo')
+    const [item] = await loadDayItems(db, MON, MON)
+    expect(item).toMatchObject({ status: 'todo', spentSec: 1200 })
+  })
+})

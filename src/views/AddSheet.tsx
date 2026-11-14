@@ -163,6 +163,12 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
         <CategoryChips value={categoryId} onChange={setCategoryId} categories={categories} />
       </Field>
 
+      {!more ? (
+        <button type="button" className="mt-5 text-sm font-medium text-accent" onClick={() => setMore(true)}>
+          Plus d'options (répéter, échéance, note)
+        </button>
+      ) : (
+        <>
       <Field label="Répéter">
         <div className="flex flex-wrap gap-1.5">
           <Chip active={repeat === 'never'} onClick={() => setRepeat('never')}>
@@ -200,12 +206,6 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
         )}
       </Field>
 
-      {!more ? (
-        <button type="button" className="mt-5 text-sm font-medium text-accent" onClick={() => setMore(true)}>
-          Plus d'options (échéance, note)
-        </button>
-      ) : (
-        <>
           {!repeating && (
             <Field label="Échéance (date limite)">
               <input

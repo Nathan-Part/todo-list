@@ -294,12 +294,15 @@ export function DayView() {
 
   const tomorrow = addDays(today, 1)
   const swipeFor = (item: DayItem): RowProps['swipeActions'] => {
+    if (item.status === 'skipped' || (item.status === 'deleted' && item.taskId)) {
+      return [{ label: 'Récupérer', tone: 'accent', onClick: () => void actions.recover(item), full: true }]
+    }
     if (mode === 'past' || item.status !== 'todo') return undefined
     if (item.kind === 'routine') return [{ label: 'Sauter', tone: 'muted', onClick: () => void actions.skip(item) }]
     const list: NonNullable<RowProps['swipeActions']> = []
     if (item.date !== tomorrow) list.push({ label: 'Demain', tone: 'accent', onClick: () => void actions.postpone(item, tomorrow) })
     list.push({ label: 'Réserve', tone: 'warn', onClick: () => void actions.postpone(item, 'reserve') })
-    list.push({ label: 'Supprimer', tone: 'bad', onClick: () => void actions.remove(item) })
+    list.push({ label: 'Supprimer', tone: 'bad', onClick: () => void actions.remove(item), full: true })
     return list
   }
 
@@ -372,7 +375,7 @@ export function DayView() {
 
       <div className="mt-4 space-y-2" role="list">
         {loaded && mode === 'past' &&
-          groups.all.map((item) => <ItemRow key={item.id} item={item} {...rowProps} />)}
+          groups.all.map((item) => <ItemRow key={item.id} item={item} {...rowProps} swipeActions={swipeFor(item)} />)}
 
         {loaded && mode !== 'past' && (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -422,7 +425,7 @@ export function DayView() {
           {showOther && (
             <div className="space-y-2" role="list">
               {groups.other.map((item) => (
-                <ItemRow key={item.id} item={item} {...rowProps} />
+                <ItemRow key={item.id} item={item} {...rowProps} swipeActions={swipeFor(item)} />
               ))}
             </div>
           )}

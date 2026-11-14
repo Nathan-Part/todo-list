@@ -450,6 +450,29 @@ export function restoreTask(d: AppDB, snap: TaskSnapshot): Promise<void> {
   })
 }
 
+/** Récupère une tâche supprimée dont l'historique avait été gardé : elle revient à faire. */
+export function undeleteTask(d: AppDB, taskId: string, nowMs: number): Promise<void> {
+  return tx(d, async () => {
+    const today = dayKeyOf(nowMs)
+    const task = await d.tasks.get(taskId)
+    if (!task || task.status !== 'deleted') return
+    const deleted = (await d.entries.where('taskId').equals(taskId).toArray())
+      .filter((e) => e.status === 'deleted')
+      .sort((a, b) => b.date.localeCompare(a.date))
+    const current = deleted.find((e) => e.date >= today)
+    for (const e of deleted) {
+      if (e === current) await d.entries.update(e.id, { status: 'todo', closedAt: undefined })
+      else await d.entries.update(e.id, { status: 'not_done' })
+    }
+    await d.tasks.update(taskId, {
+      status: 'todo',
+      deletedAt: undefined,
+      needsReview: false,
+      reserveSince: current ? undefined : today,
+    })
+  })
+}
+
 /** Supprime une tâche : le temps déjà enregistré reste dans l'historique (RG-90/91). */
 export function deleteTask(d: AppDB, taskId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {

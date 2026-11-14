@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 
 /* ---------------------------------------------------------------- */
 /* Icônes (traits fins, 24×24)                                       */
@@ -122,11 +122,16 @@ export const inputClass = `${inputBase} w-full`
  */
 function useKeyboardViewport() {
   const [vv, setVv] = useState<{ top: number; height: number } | null>(null)
+  const changedAt = useRef(0)
   useEffect(() => {
     const v = window.visualViewport
     if (!v) return
+    let open = false
     const update = () => {
-      if (window.innerHeight - v.height > 120) setVv({ top: v.offsetTop, height: v.height })
+      const nowOpen = window.innerHeight - v.height > 120
+      if (nowOpen !== open) changedAt.current = Date.now()
+      open = nowOpen
+      if (nowOpen) setVv({ top: v.offsetTop, height: v.height })
       else setVv(null)
     }
     update()
@@ -137,7 +142,7 @@ function useKeyboardViewport() {
       v.removeEventListener('scroll', update)
     }
   }, [])
-  return vv
+  return { vv, changedAt }
 }
 
 export function Sheet({
@@ -151,7 +156,7 @@ export function Sheet({
   children: ReactNode
   footer?: ReactNode
 }) {
-  const vv = useKeyboardViewport()
+  const { vv, changedAt } = useKeyboardViewport()
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -164,6 +169,14 @@ export function Sheet({
     <div
       className="fixed inset-0 z-40 flex items-end justify-center"
       style={vv ? { top: vv.top, height: vv.height, bottom: 'auto' } : undefined}
+      onClickCapture={(e) => {
+        // quand le clavier s'ouvre ou se ferme, la feuille se déplace : un toucher à ce moment-là
+        // tomberait sur un autre bouton que celui visé, on l'ignore
+        if (Date.now() - changedAt.current < 450) {
+          e.stopPropagation()
+          e.preventDefault()
+        }
+      }}
       role="dialog"
       aria-modal="true"
     >
