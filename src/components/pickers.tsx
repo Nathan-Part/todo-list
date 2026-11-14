@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from '../db'
 import {
   addSession,
@@ -14,6 +14,54 @@ import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
 import { CategoryDot, Chip, Icon, btnSoft, inputBase } from './ui'
 
 const PRESETS = [15, 30, 45, 60, 90, 120]
+
+/** Saisie d'une durée en heures et minutes ; la valeur est en minutes. */
+export function DurationInput({
+  value,
+  onChange,
+  onEnter,
+}: {
+  value: number | undefined
+  onChange: (min: number | undefined) => void
+  onEnter?: () => void
+}) {
+  const split = (v?: number) => (v ? { h: v >= 60 ? String(Math.floor(v / 60)) : '', m: v % 60 ? String(v % 60) : '' } : { h: '', m: '' })
+  const [f, setF] = useState(split(value))
+  const total = (x: { h: string; m: string }) => (Number(x.h) || 0) * 60 + (Number(x.m) || 0)
+  useEffect(() => {
+    if ((value ?? 0) !== total(f)) setF(split(value))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  const set = (patch: Partial<typeof f>) => {
+    const next = { ...f, ...patch }
+    setF(next)
+    const t = Math.round(total(next))
+    onChange(t > 0 ? t : undefined)
+  }
+  const field = (k: 'h' | 'm', label: string, max: number) => (
+    <label className="flex items-center gap-1.5">
+      <input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={max}
+        placeholder="0"
+        aria-label={k === 'h' ? 'Heures' : 'Minutes'}
+        value={f[k]}
+        onChange={(e) => set({ [k]: e.target.value.replace(/[^0-9]/g, '').slice(0, 3) })}
+        onKeyDown={(e) => e.key === 'Enter' && onEnter?.()}
+        className={`${inputBase} w-16 shrink-0 text-center`}
+      />
+      <span className="text-sm text-muted">{label}</span>
+    </label>
+  )
+  return (
+    <div className="flex items-center gap-3">
+      {field('h', 'h', 24)}
+      {field('m', 'min', 59)}
+    </div>
+  )
+}
 
 /** Durée estimée par raccourcis, ou valeur libre. */
 export function EstimateChips({
@@ -46,18 +94,8 @@ export function EstimateChips({
         </Chip>
       </div>
       {showCustom && (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={999}
-            placeholder="Minutes"
-            className={`${inputBase} w-28 shrink-0`}
-            value={value ?? ''}
-            onChange={(e) => onChange(e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined)}
-          />
-          <span className="text-sm text-muted">min</span>
+        <div className="mt-2">
+          <DurationInput value={value} onChange={onChange} />
         </div>
       )}
     </div>
@@ -117,13 +155,12 @@ export function WeekdayToggles({ value, onChange }: { value: number[]; onChange:
 
 /** Sessions de temps d'un passage, avec ajout et suppression manuels (RG-66). */
 export function SessionsEditor({ entryId, sessions }: { entryId?: string; sessions: Session[] }) {
-  const [minutes, setMinutes] = useState('')
+  const [minutes, setMinutes] = useState<number | undefined>()
   const total = sessions.reduce((n, s) => n + s.durationSec, 0)
   const add = async () => {
-    const m = Number(minutes)
-    if (!entryId || !m || m <= 0) return
-    await addSession(db, entryId, { durationSec: m * 60 }, 'manual')
-    setMinutes('')
+    if (!entryId || !minutes) return
+    await addSession(db, entryId, { durationSec: minutes * 60 }, 'manual')
+    setMinutes(undefined)
   }
   return (
     <div>
@@ -162,18 +199,9 @@ export function SessionsEditor({ entryId, sessions }: { entryId?: string; sessio
         </ul>
       )}
       {entryId && (
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            placeholder="Minutes"
-            value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && void add()}
-            className={`${inputBase} w-28 shrink-0`}
-          />
-          <button type="button" className={btnSoft} onClick={() => void add()} disabled={!Number(minutes)}>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <DurationInput value={minutes} onChange={setMinutes} onEnter={() => void add()} />
+          <button type="button" className={btnSoft} onClick={() => void add()} disabled={!minutes}>
             <Icon name="plus" className="size-4" />
             Ajouter
           </button>
@@ -199,13 +227,12 @@ export function SubtasksEditor({
   onStart?: (entryId: string) => void
 }) {
   const [name, setName] = useState('')
-  const [minutes, setMinutes] = useState('')
+  const [minutes, setMinutes] = useState<number | undefined>()
   const add = async () => {
     if (!name.trim()) return
-    const m = Number(minutes)
-    await addSubtask(db, taskId, { name, estimateMin: m > 0 ? Math.round(m) : undefined })
+    await addSubtask(db, taskId, { name, estimateMin: minutes })
     setName('')
-    setMinutes('')
+    setMinutes(undefined)
   }
   return (
     <div>
@@ -260,26 +287,20 @@ export function SubtasksEditor({
         </ul>
       )}
       <form
-        className="flex items-center gap-2"
+        className="space-y-2"
         onSubmit={(e) => {
           e.preventDefault()
           void add()
         }}
       >
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nouvelle étape" className={`${inputBase} min-w-0 flex-1`} />
-        <input
-          type="number"
-          inputMode="numeric"
-          min={1}
-          value={minutes}
-          onChange={(e) => setMinutes(e.target.value)}
-          placeholder="min"
-          aria-label="Durée en minutes"
-          className={`${inputBase} w-20 shrink-0`}
-        />
-        <button type="submit" className={btnSoft} aria-label="Ajouter l'étape" disabled={!name.trim()}>
-          <Icon name="plus" className="size-4" />
-        </button>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nouvelle étape" className={`${inputBase} w-full`} />
+        <div className="flex flex-wrap items-center gap-3">
+          <DurationInput value={minutes} onChange={setMinutes} onEnter={() => void add()} />
+          <button type="submit" className={btnSoft} aria-label="Ajouter l'étape" disabled={!name.trim()}>
+            <Icon name="plus" className="size-4" />
+            Ajouter
+          </button>
+        </div>
       </form>
     </div>
   )
