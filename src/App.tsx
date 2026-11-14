@@ -37,7 +37,7 @@ function needsInstall(): boolean {
 function InstallScreen() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-10">
-      <img src="/pwa-192.png" alt="" className="size-20 rounded-[22px] shadow-lg" />
+      <img src={`${import.meta.env.BASE_URL}pwa-192.png`} alt="" className="size-20 rounded-[22px] shadow-lg" />
       <h1 className="mt-6 text-3xl font-bold tracking-tight">Installe l'app</h1>
       <p className="mt-2 text-muted">
         Tes données sont enregistrées dans l'app installée sur ton écran d'accueil, pas dans Safari. Installe-la d'abord, puis ouvre-la depuis son icône.

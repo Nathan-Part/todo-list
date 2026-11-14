@@ -1,5 +1,7 @@
 # Ma journée — daily planner & time tracker (PWA)
 
+**Live demo: https://nathan-part.github.io/todo-list/** (best on a phone)
+
 A personal, offline-first Progressive Web App that combines a **to-do list**, a **habit tracker** and a **time tracker** around a single idea: *the day*.
 
 It answers three questions every morning:
@@ -92,7 +94,9 @@ npm run typecheck
 npm run build      # production build in dist/
 ```
 
-To use it on an iPhone: deploy `dist/` to any static host over HTTPS, open it in Safari, then **Share → Add to Home Screen**.
+To use it on an iPhone: open the live demo in Safari, then **Share → Add to Home Screen**.
+
+Every push to `main` publishes the app to GitHub Pages (`.github/workflows/pages.yml`). To host it at the root of your own domain instead, build with the default base path (`npm run build`).
 
 ### Optional deployment
 
