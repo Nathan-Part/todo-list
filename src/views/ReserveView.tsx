@@ -1,4 +1,8 @@
+import { Swipeable } from '../components/Swipe'
 import { CategoryDot, Icon, btnSoft } from '../components/ui'
+import { db } from '../db'
+import { deleteTask, planTask, restoreTask, snapshotTask } from '../domain/actions'
+import { useToast } from '../lib/toast'
 import { addDays, diffDays } from '../domain/dates'
 import type { ReserveItem } from '../domain/queries'
 import { dayLabel, dayShort, formatMin, plural } from '../lib/format'
@@ -10,13 +14,30 @@ function ReserveRow({ r }: { r: ReserveItem }) {
   const { today, setSheet } = useNav()
   const { byId } = useCategories()
   const { completeTaskById } = useItemActions()
+  const toast = useToast()
   const t = r.task
+  const plan = async (day: string, label: string) => {
+    await planTask(db, t.id, day, Date.now())
+    toast({ text: `Planifiée ${label}`, duration: 2500 })
+  }
+  const remove = async () => {
+    const snap = await snapshotTask(db, t.id)
+    await deleteTask(db, t.id, Date.now())
+    if (snap) toast({ text: 'Tâche supprimée', actionLabel: 'Annuler', onAction: () => void restoreTask(db, snap) })
+  }
   const cat = t.categoryId ? byId.get(t.categoryId) : undefined
   const dueIn = t.dueDate ? diffDays(t.dueDate, today) : undefined
   const dueClass = dueIn !== undefined && dueIn <= 3 ? 'font-semibold text-bad' : 'text-muted'
 
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-line/70 bg-surface px-3 py-2.5">
+    <Swipeable
+      actions={[
+        { label: "Aujourd'hui", tone: 'accent', onClick: () => void plan(today, "aujourd'hui") },
+        { label: 'Demain', tone: 'warn', onClick: () => void plan(addDays(today, 1), 'demain') },
+        { label: 'Supprimer', tone: 'bad', onClick: () => void remove(), full: true },
+      ]}
+      className="flex items-center gap-3 rounded-2xl border border-line/70 bg-surface px-3 py-2.5"
+    >
       <button
         type="button"
         aria-label="Terminer"
@@ -55,7 +76,7 @@ function ReserveRow({ r }: { r: ReserveItem }) {
           )}
         </div>
       </button>
-    </div>
+    </Swipeable>
   )
 }
 

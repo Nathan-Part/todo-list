@@ -1,4 +1,5 @@
-import { type HTMLAttributes, type Ref, useRef, useState } from 'react'
+import type { HTMLAttributes, Ref } from 'react'
+import { type SwipeAction, Swipeable } from './Swipe'
 import type { DayItem } from '../domain/stats'
 import { liveSpentSec } from '../domain/stats'
 import type { Category } from '../domain/types'
@@ -19,17 +20,9 @@ interface Props {
   rootProps?: HTMLAttributes<HTMLDivElement>
   dragging?: boolean
   /** Actions révélées en glissant la ligne vers la gauche. */
-  swipeActions?: {
-    label: string
-    tone: 'accent' | 'warn' | 'muted' | 'bad'
-    onClick: () => void
-    /** Déclenchée aussi en glissant jusqu'au bout. */
-    full?: boolean
-  }[]
+  swipeActions?: SwipeAction[]
 }
 
-const ACTION_W = 78
-const TONES = { accent: 'bg-accent text-on-accent', warn: 'bg-warn text-surface', muted: 'bg-muted text-surface', bad: 'bg-bad text-surface' }
 
 function statusText(item: DayItem): string | null {
   switch (item.status) {
@@ -59,52 +52,6 @@ export function ItemRow({
   dragging,
   swipeActions,
 }: Props) {
-  const [dx, setDx] = useState(0)
-  const [anim, setAnim] = useState(false)
-  const start = useRef<{ x: number; y: number; base: number; dir?: 'h' | 'v' } | null>(null)
-  const maxOpen = (swipeActions?.length ?? 0) * ACTION_W
-  const fullAction = swipeActions?.find((a) => a.full)
-  const fgRef = useRef<HTMLDivElement>(null)
-  const width = () => fgRef.current?.offsetWidth ?? 360
-  // seuil du « glisser jusqu'au bout » : bien au-delà de l'ouverture normale des boutons
-  const fullAt = () => Math.max(width() * 0.6, maxOpen + 48)
-  const pastFull = !!fullAction && -dx > fullAt()
-  const swipeHandlers = swipeActions?.length
-    ? {
-        onTouchStart: (e: React.TouchEvent) => {
-          start.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, base: dx }
-          setAnim(false)
-        },
-        onTouchMove: (e: React.TouchEvent) => {
-          const st = start.current
-          if (!st) return
-          const mx = e.touches[0].clientX - st.x
-          const my = e.touches[0].clientY - st.y
-          if (!st.dir && (Math.abs(mx) > 10 || Math.abs(my) > 10)) st.dir = Math.abs(mx) > Math.abs(my) ? 'h' : 'v'
-          if (st.dir === 'h') setDx(Math.max(fullAction ? -width() : -maxOpen - 24, Math.min(0, st.base + mx)))
-        },
-        onTouchEnd: () => {
-          const st = start.current
-          start.current = null
-          if (!st || st.dir !== 'h') return
-          setAnim(true)
-          if (fullAction && -dx > fullAt()) {
-            setDx(-width())
-            setTimeout(() => {
-              fullAction.onClick()
-              setAnim(false)
-              setDx(0)
-            }, 180)
-            return
-          }
-          setDx((cur) => (cur < -maxOpen / 2 ? -maxOpen : 0))
-        },
-      }
-    : {}
-  const close = () => {
-    setAnim(true)
-    setDx(0)
-  }
   const isDone = item.status === 'done'
   const isOpen = item.status === 'todo'
   const cat = item.categoryId ? categories.get(item.categoryId) : undefined
@@ -155,39 +102,13 @@ export function ItemRow({
   }
 
   return (
-    <div ref={rootRef} {...rootProps} className={`relative overflow-hidden rounded-2xl ${rootProps?.className ?? ''}`}>
-      {swipeActions && dx < 0 && (
-        <div className="absolute inset-y-0 right-0 flex" style={{ width: Math.max(maxOpen, -dx) }}>
-          {(pastFull ? [fullAction!] : swipeActions).map((a, i, arr) => (
-            <button
-              key={a.label}
-              type="button"
-              onClick={() => {
-                close()
-                a.onClick()
-              }}
-              className={`flex items-center justify-center text-sm font-semibold transition-all ${TONES[a.tone]}`}
-              style={i === arr.length - 1 ? { flex: 1, minWidth: ACTION_W } : { width: ACTION_W }}
-            >
-              {a.label}
-            </button>
-          ))}
-        </div>
-      )}
-    <div
-      ref={fgRef}
-      {...swipeHandlers}
-      onClickCapture={(e) => {
-        if (dx !== 0) {
-          e.stopPropagation()
-          e.preventDefault()
-          close()
-        }
-      }}
-      style={{ transform: dx ? `translateX(${dx}px)` : undefined, touchAction: 'pan-y' }}
-      className={`relative flex items-center gap-3 rounded-2xl border bg-surface px-3 py-2.5 ${
-        anim ? 'transition-transform duration-200' : ''
-      } ${dragging ? 'border-accent shadow-lg' : 'border-line/70'}`}
+    <Swipeable
+      actions={swipeActions}
+      rootRef={rootRef}
+      rootProps={rootProps}
+      className={`flex items-center gap-3 rounded-2xl border bg-surface px-3 py-2.5 ${
+        dragging ? 'border-accent shadow-lg' : 'border-line/70'
+      }`}
     >
       {/* case à cocher */}
       {mode === 'today' && (isOpen || isDone) ? (
@@ -260,7 +181,6 @@ export function ItemRow({
           </button>
         </div>
       )}
-    </div>
-    </div>
+    </Swipeable>
   )
 }
