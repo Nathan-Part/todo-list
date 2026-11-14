@@ -12,7 +12,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { ItemRow, type RowMode } from '../components/ItemRow'
 import { WeekStrip } from '../components/WeekStrip'
 import { Icon } from '../components/ui'
-import { db } from '../db'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db, getMeta } from '../db'
 import { reorderDay } from '../domain/actions'
 import { addDays, weekdayIndex } from '../domain/dates'
 import { type DayItem, computeDayStats } from '../domain/stats'
@@ -44,6 +45,33 @@ function SortableRow(props: Omit<RowProps, 'rootRef' | 'rootProps' | 'dragging'>
         },
       }}
     />
+  )
+}
+
+/** Sans sauvegarde automatique, on rappelle d'exporter ses données chaque semaine. */
+function ExportReminder() {
+  const { setSheet } = useNav()
+  const info = useLiveQuery(async () => {
+    const last = await getMeta<number | undefined>(db, 'lastExport', undefined)
+    const first = await db.entries.orderBy('date').first()
+    return { last, first: first?.date }
+  }, [])
+  const now = Date.now()
+  if (!info?.first) return null
+  const since = info.last ?? new Date(info.first).getTime()
+  if (now - since < 7 * 86_400_000) return null
+  return (
+    <button
+      type="button"
+      onClick={() => setSheet({ type: 'settings' })}
+      className="mt-3 flex w-full items-center gap-3 rounded-2xl bg-accent-soft px-4 py-3 text-left text-accent"
+    >
+      <Icon name="inbox" className="size-5 shrink-0" />
+      <span className="flex-1 text-sm font-medium">
+        {info.last ? 'Dernier export il y a plus de 7 jours' : 'Pense à exporter tes données'} : c'est ta sauvegarde.
+      </span>
+      <Icon name="right" className="size-4" />
+    </button>
   )
 }
 
@@ -329,7 +357,8 @@ export function DayView() {
       </div>
 
       {mode === 'today' && <Banner />}
-      {loaded && <KeyFigures items={items} mode={mode} now={now} day={selectedDay} />}
+      {mode === 'today' && <ExportReminder />}
+      {loaded && items.length > 0 && <KeyFigures items={items} mode={mode} now={now} day={selectedDay} />}
 
       <div className="mt-4 space-y-2" role="list">
         {loaded && mode === 'past' &&

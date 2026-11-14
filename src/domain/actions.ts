@@ -501,6 +501,15 @@ export function pauseTimer(d: AppDB, nowMs: number): Promise<void> {
   })
 }
 
+/** Chrono oublié : on l'arrête à l'heure indiquée (RG-67). */
+export function stopTimerAt(d: AppDB, endMs: number): Promise<void> {
+  return tx(d, async () => {
+    const running = await d.sessions.where('running').equals(1).first()
+    if (!running) return
+    await closeSession(d, running, Math.max(running.startAt ?? endMs, endMs))
+  })
+}
+
 export function addSession(
   d: AppDB,
   entryId: string,

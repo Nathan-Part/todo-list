@@ -19,17 +19,17 @@ Les données restent sur l'appareil (IndexedDB) : aucun compte, aucun serveur, l
 
 - Vue **Jour** : bande semaine avec la charge de chaque jour, chiffres clés, liste à ordre manuel (appui long puis glisser), jours passés en mode bilan.
 - **Tâches** : ajout rapide, fiche (durée, catégorie, échéance, note, temps, parcours), report, suppression qui conserve le temps passé, tâche imprévue.
+- **Sous-tâches** avec durée et chrono propres ; la dernière cochée termine la tâche.
+- **Glisser une ligne vers la gauche** : Demain / Réserve, ou Sauter pour une routine.
 - **Réserve** et **revue** des tâches « à replanifier » : rien ne disparaît tout seul.
 - **Routines** : tous les jours, jours choisis, tous les N jours ; pause, saut, déplacement d'une occurrence, régularité, calibrage des estimations.
 - **Bascule de minuit** sans doublon ; question au retour après plusieurs jours d'absence.
-- **Chrono** (un seul actif) avec écran focus et mini-lecteur.
+- **Chrono** (un seul actif) avec écran focus, mini-lecteur, **frise du temps réel**, et question « chrono oublié ? » au-delà de 3 heures.
+- **Rappel d'export** hebdomadaire (il n'y a pas de sauvegarde automatique).
 - **Bilan** hebdomadaire, recherche, réglages (capacité par jour, catégories), export et import des données.
 
 ## Pas encore fait
 
-- Sous-tâches (avec durée et chrono propres).
-- Frise du temps réel dans la journée.
-- Glisser une ligne pour la reporter (aujourd'hui : via la fiche).
 - Sauvegarde automatique chiffrée (abandonnée pour l'instant : l'export manuel la remplace).
 - Notifications.
 

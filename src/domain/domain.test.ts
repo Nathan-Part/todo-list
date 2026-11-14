@@ -584,3 +584,14 @@ describe('sous-tâches', () => {
     expect((await db.subtasks.get(b))!.status).toBe('done')
   })
 })
+
+describe('chrono oublié', () => {
+  it('arrêter à une heure passée enregistre la bonne durée', async () => {
+    const { stopTimerAt } = await import('./actions')
+    const id = await addTask(db, { name: 'A', plan: MON }, at(MON))
+    await startTimer(db, taskEntryId(id, MON), at(MON, 9))
+    await stopTimerAt(db, at(MON, 10, 30))
+    const s = (await db.sessions.toArray())[0]
+    expect(s).toMatchObject({ running: 0, durationSec: 90 * 60 })
+  })
+})

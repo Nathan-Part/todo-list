@@ -37,7 +37,7 @@ function ReserveRow({ r }: { r: ReserveItem }) {
               non terminée {dayLabel(addDays(t.reserveSince, -1), today).toLowerCase()}
             </span>
           ) : (
-            <span>en réserve depuis {r.ageDays} j</span>
+            <span>{r.ageDays === 0 ? 'ajoutée aujourd\'hui' : r.ageDays === 1 ? 'en réserve depuis hier' : `en réserve depuis ${r.ageDays} j`}</span>
           )}
           {r.postponedCount > 0 && <span>reportée {r.postponedCount}×</span>}
           {t.estimateMin ? <span>{formatMin(t.estimateMin)}</span> : <span className="text-warn">sans durée</span>}

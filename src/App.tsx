@@ -1,12 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { ForgottenTimer } from './components/ForgottenTimer'
 import { FocusScreen, MiniPlayer } from './components/Timer'
 import { Icon, type IconName, btnGhost, btnPrimary } from './components/ui'
 import { META, db, getMeta } from './db'
 import { absenceToConfirm, runRollover } from './domain/rollover'
 import { dayShort, plural } from './lib/format'
-import { useReserve, useRunningSession, useToday } from './lib/hooks'
+import { useReserve, useRunning, useRunningSession, useToday } from './lib/hooks'
+import { dayKeyOf } from './domain/dates'
 import { NavContext, type SheetState, type Tab } from './lib/nav'
 import { AddSheet } from './views/AddSheet'
 import { BilanView } from './views/BilanView'
@@ -109,6 +111,8 @@ function Shell() {
   const [selectedDay, setSelectedDay] = useState(today)
   const [sheet, setSheet] = useState<SheetState>(null)
   const [focusEntryId, setFocus] = useState<string | null>(null)
+  const [okTimer, setOkTimer] = useState<string | null>(null)
+  const runningItem = useRunning()
 
   // quand le jour change, la vue suit si l'on regardait « aujourd'hui »
   const prevToday = useRef(today)
@@ -247,6 +251,16 @@ function Shell() {
       {sheet?.type === 'pause' && <PauseSheet routineId={sheet.routineId} onClose={close} />}
       {sheet?.type === 'review' && <ReviewSheet onClose={close} />}
       {sheet?.type === 'settings' && <SettingsSheet onClose={close} />}
+      {runningItem &&
+        okTimer !== runningItem.session.id &&
+        runningItem.session.startAt !== undefined &&
+        (Date.now() - runningItem.session.startAt > 3 * 3_600_000 || dayKeyOf(runningItem.session.startAt) < today) && (
+          <ForgottenTimer
+            session={runningItem.session}
+            name={runningItem.item.name}
+            onDone={() => setOkTimer(runningItem.session.id)}
+          />
+        )}
       {focusEntryId && <FocusScreen entryId={focusEntryId} onClose={() => setFocus(null)} />}
     </NavContext.Provider>
   )
