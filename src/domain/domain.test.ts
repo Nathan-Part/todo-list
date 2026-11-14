@@ -606,3 +606,18 @@ describe('annuler un saut', () => {
     expect((await db.entries.get(e))!.status).toBe('todo')
   })
 })
+
+describe('annuler une suppression', () => {
+  it('restaure la tâche, son passage, son temps et ses étapes', async () => {
+    const { snapshotTask, restoreTask, addSubtask } = await import('./actions')
+    const id = await addTask(db, { name: 'A', estimateMin: 30, plan: MON }, at(MON))
+    await addSubtask(db, id, { name: 'étape', estimateMin: 30 })
+    await startTimer(db, taskEntryId(id, MON), at(MON, 9))
+    await pauseTimer(db, at(MON, 9, 10))
+    const snap = (await snapshotTask(db, id))!
+    await deleteTask(db, id, at(MON, 10))
+    await restoreTask(db, snap)
+    const [item] = await loadDayItems(db, MON, MON)
+    expect(item).toMatchObject({ name: 'A', status: 'todo', spentSec: 600, subtasksTotal: 1 })
+  })
+})

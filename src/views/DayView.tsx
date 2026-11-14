@@ -290,6 +290,7 @@ export function DayView() {
     const list: NonNullable<RowProps['swipeActions']> = []
     if (item.date !== tomorrow) list.push({ label: 'Demain', tone: 'accent', onClick: () => void actions.postpone(item, tomorrow) })
     list.push({ label: 'Réserve', tone: 'warn', onClick: () => void actions.postpone(item, 'reserve') })
+    list.push({ label: 'Supprimer', tone: 'bad', onClick: () => void actions.remove(item) })
     return list
   }
 

@@ -19,11 +19,11 @@ interface Props {
   rootProps?: HTMLAttributes<HTMLDivElement>
   dragging?: boolean
   /** Actions révélées en glissant la ligne vers la gauche. */
-  swipeActions?: { label: string; tone: 'accent' | 'warn' | 'muted'; onClick: () => void }[]
+  swipeActions?: { label: string; tone: 'accent' | 'warn' | 'muted' | 'bad'; onClick: () => void }[]
 }
 
-const ACTION_W = 84
-const TONES = { accent: 'bg-accent text-on-accent', warn: 'bg-warn text-surface', muted: 'bg-muted text-surface' }
+const ACTION_W = 78
+const TONES = { accent: 'bg-accent text-on-accent', warn: 'bg-warn text-surface', muted: 'bg-muted text-surface', bad: 'bg-bad text-surface' }
 
 function statusText(item: DayItem): string | null {
   switch (item.status) {

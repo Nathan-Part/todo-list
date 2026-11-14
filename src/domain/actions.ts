@@ -424,6 +424,32 @@ export function unskipEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
   })
 }
 
+export interface TaskSnapshot {
+  task: Task
+  entries: Entry[]
+  sessions: Session[]
+  subtasks: import('./types').Subtask[]
+}
+
+/** Copie complète d'une tâche, pour pouvoir annuler sa suppression. */
+export async function snapshotTask(d: AppDB, taskId: string): Promise<TaskSnapshot | null> {
+  const task = await d.tasks.get(taskId)
+  if (!task) return null
+  const entries = await d.entries.where('taskId').equals(taskId).toArray()
+  const sessions = entries.length ? await d.sessions.where('entryId').anyOf(entries.map((e) => e.id)).toArray() : []
+  const subtasks = await d.subtasks.where('taskId').equals(taskId).toArray()
+  return { task, entries, sessions, subtasks }
+}
+
+export function restoreTask(d: AppDB, snap: TaskSnapshot): Promise<void> {
+  return tx(d, async () => {
+    await d.tasks.put(snap.task)
+    await d.entries.bulkPut(snap.entries)
+    await d.sessions.bulkPut(snap.sessions.map((s) => ({ ...s, running: 0 as const })))
+    await d.subtasks.bulkPut(snap.subtasks)
+  })
+}
+
 /** Supprime une tâche : le temps déjà enregistré reste dans l'historique (RG-90/91). */
 export function deleteTask(d: AppDB, taskId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {

@@ -4,6 +4,9 @@ import {
   addSession,
   completeEntry,
   completeTask,
+  deleteTask,
+  restoreTask,
+  snapshotTask,
   pauseTimer,
   postponeEntry,
   reopenEntry,
@@ -122,5 +125,15 @@ export function useItemActions() {
     [toast],
   )
 
-  return { complete, completeTaskById, toggle, timer, open, postpone, skip }
+  const remove = useCallback(
+    async (item: DayItem) => {
+      if (!item.taskId) return
+      const snap = await snapshotTask(db, item.taskId)
+      await deleteTask(db, item.taskId, Date.now())
+      if (snap) toast({ text: 'Tâche supprimée', actionLabel: 'Annuler', onAction: () => void restoreTask(db, snap) })
+    },
+    [toast],
+  )
+
+  return { complete, completeTaskById, toggle, timer, open, postpone, skip, remove }
 }
