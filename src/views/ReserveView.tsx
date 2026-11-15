@@ -9,6 +9,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useEffect, useState } from 'react'
+import { SubtaskDropdown } from '../components/ItemRow'
 import { Swipeable } from '../components/Swipe'
 import { CategoryDot, Icon, btnSoft } from '../components/ui'
 import { db } from '../db'
@@ -61,8 +62,9 @@ function ReserveRow({ r }: { r: ReserveItem }) {
         { label: 'Demain', tone: 'warn', onClick: () => void plan(addDays(today, 1), 'demain') },
         { label: 'Supprimer', tone: 'bad', onClick: () => void remove(), full: true },
       ]}
-      className="flex items-center gap-3 rounded-2xl border border-line/70 bg-surface px-3 py-2.5"
+      className="rounded-2xl border border-line/70 bg-surface"
     >
+      <div className="flex items-center gap-3 px-3 py-2.5">
       <button
         type="button"
         aria-label="Terminer"
@@ -76,7 +78,7 @@ function ReserveRow({ r }: { r: ReserveItem }) {
         className="min-w-0 flex-1 text-left"
         onClick={() => setSheet({ type: 'task', taskId: t.id })}
       >
-        <div className="truncate text-[15px] font-medium">{t.name}</div>
+        <div className="break-words text-[15px] font-medium leading-snug">{t.name}</div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
           {t.needsReview && t.reserveSince ? (
             <span className="font-medium text-warn">
@@ -101,6 +103,15 @@ function ReserveRow({ r }: { r: ReserveItem }) {
           )}
         </div>
       </button>
+      </div>
+      {r.subtasks.length > 0 && (
+        <SubtaskDropdown
+          taskId={t.id}
+          subtasks={r.subtasks}
+          canCheck
+          onOpen={() => setSheet({ type: 'task', taskId: t.id })}
+        />
+      )}
     </Swipeable>
   )
 }

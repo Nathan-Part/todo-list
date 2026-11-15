@@ -128,7 +128,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
                     type="button"
                     disabled={st.status === 'done'}
                     onClick={() => void startTimer(db, entryId, Date.now(), st.id)}
-                    className={`min-w-0 flex-1 truncate text-left ${st.status === 'done' ? 'text-muted line-through' : ''} ${
+                    className={`min-w-0 flex-1 break-words text-left leading-snug ${st.status === 'done' ? 'text-muted line-through' : ''} ${
                       currentSub?.id === st.id ? 'font-semibold text-accent' : ''
                     }`}
                   >

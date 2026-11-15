@@ -355,7 +355,7 @@ export function SubtasksEditor({
                   onClick={() => setEditing({ id: st.id, name: st.name, minutes: st.estimateMin })}
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
-                  <span className={`min-w-0 flex-1 truncate text-[15px] ${done ? 'text-muted line-through' : ''}`}>
+                  <span className={`min-w-0 flex-1 break-words text-[15px] leading-snug ${done ? 'text-muted line-through' : ''}`}>
                     {st.name}
                   </span>
                   <span className="text-xs text-muted tabular">{st.estimateMin ? formatMin(st.estimateMin) : 'durée ?'}</span>

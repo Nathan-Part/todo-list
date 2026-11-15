@@ -174,6 +174,7 @@ export interface ReserveItem {
   postponedCount: number
   /** Jours passés en réserve. */
   ageDays: number
+  subtasks: { id: string; name: string; status: 'todo' | 'done'; estimateMin?: number }[]
 }
 
 /** Tâches à faire sans jour prévu. Tri : à replanifier, puis échéance, puis ancienneté (RG-24). */
@@ -181,6 +182,9 @@ export async function loadReserve(d: AppDB, today: DayKey): Promise<ReserveItem[
   const todos = await d.tasks.where('status').equals('todo').toArray()
   const open = await d.entries.where('status').equals('todo').toArray()
   const history = await d.entries.where('status').anyOf('not_done', 'postponed').toArray()
+  const allSubtasks = await d.subtasks.toArray()
+  const subsByTask = new Map<string, Subtask[]>()
+  for (const st of allSubtasks) subsByTask.set(st.taskId, [...(subsByTask.get(st.taskId) ?? []), st])
   const planned = new Set(open.map((e) => e.taskId).filter((x): x is string => !!x))
   const counts = new Map<string, number>()
   for (const e of history) if (e.taskId) counts.set(e.taskId, (counts.get(e.taskId) ?? 0) + 1)
@@ -191,6 +195,9 @@ export async function loadReserve(d: AppDB, today: DayKey): Promise<ReserveItem[
       task,
       postponedCount: counts.get(task.id) ?? 0,
       ageDays: task.reserveSince ? Math.max(0, diffDays(today, task.reserveSince)) : 0,
+      subtasks: (subsByTask.get(task.id) ?? [])
+        .sort((a, b) => a.position - b.position)
+        .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin })),
     }))
     .sort((a, b) => {
       if (a.task.needsReview !== b.task.needsReview) return a.task.needsReview ? -1 : 1

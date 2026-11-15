@@ -150,7 +150,7 @@ export function ItemRow({
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onOpen(item)}>
         <div className="flex items-center gap-1.5">
           <span
-            className={`truncate text-[15px] font-medium ${isDone || closedLook ? 'text-muted' : ''} ${
+            className={`break-words text-[15px] font-medium leading-snug ${isDone || closedLook ? 'text-muted' : ''} ${
               isDone ? 'line-through decoration-muted/60' : ''
             }`}
           >
@@ -185,7 +185,14 @@ export function ItemRow({
       )}
       </div>
       {item.subtasksTotal > 0 && (
-        <SubtaskDropdown item={item} canAct={mode === 'today' && isOpen} onOpen={() => onOpen(item)} />
+        <SubtaskDropdown
+          taskId={item.taskId ?? item.id}
+          subtasks={item.subtasks}
+          runningSubtaskId={item.runningSubtaskId}
+          timerEntryId={mode === 'today' && isOpen ? item.id : undefined}
+          canCheck={mode === 'today' && isOpen}
+          onOpen={() => onOpen(item)}
+        />
       )}
     </Swipeable>
   )
@@ -194,26 +201,43 @@ export function ItemRow({
 /** Étapes ouvertes, mémorisées par tâche le temps de la session. */
 const openSubtasks = new Set<string>()
 
-function SubtaskDropdown({ item, canAct, onOpen }: { item: DayItem; canAct: boolean; onOpen: () => void }) {
-  const key = item.taskId ?? item.id
+export function SubtaskDropdown({
+  taskId,
+  subtasks,
+  runningSubtaskId,
+  timerEntryId,
+  canCheck,
+  onOpen,
+}: {
+  taskId: string
+  subtasks: DayItem['subtasks']
+  runningSubtaskId?: string
+  /** Passage sur lequel lancer le chrono d'une étape ; absent = pas de chrono. */
+  timerEntryId?: string
+  canCheck: boolean
+  onOpen: () => void
+}) {
+  const key = taskId
   const [open, setOpen] = useState(() => openSubtasks.has(key))
   const toggle = () => {
     if (open) openSubtasks.delete(key)
     else openSubtasks.add(key)
     setOpen(!open)
   }
-  const ratio = item.subtasksTotal ? item.subtasksDone / item.subtasksTotal : 0
+  const total = subtasks.length
+  const doneCount = subtasks.filter((x) => x.status === 'done').length
+  const ratio = total ? doneCount / total : 0
   return (
     <div className="border-t border-line/70">
       <button
         type="button"
         onClick={toggle}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-accent"
+        className="flex w-full items-center gap-2 bg-accent-soft/60 px-3 py-2.5 text-left text-sm font-semibold text-accent"
       >
-        <Icon name="down" className={`size-4 transition ${open ? 'rotate-180' : '-rotate-90'}`} />
+        <Icon name="down" className={`size-5 transition ${open ? 'rotate-180' : '-rotate-90'}`} />
         <span className="tabular">
-          {item.subtasksDone}/{item.subtasksTotal} étapes
+          {doneCount}/{total} étapes
         </span>
         <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
           <span className="block h-full rounded-full bg-good transition-all" style={{ width: `${ratio * 100}%` }} />
@@ -221,15 +245,15 @@ function SubtaskDropdown({ item, canAct, onOpen }: { item: DayItem; canAct: bool
       </button>
       {open && (
         <ul className="pb-1.5">
-          {item.subtasks.map((st) => {
+          {subtasks.map((st) => {
             const done = st.status === 'done'
-            const running = item.runningSubtaskId === st.id
+            const running = runningSubtaskId === st.id
             return (
-              <li key={st.id} className="flex items-center gap-2.5 py-1.5 pl-5 pr-3">
+              <li key={st.id} className="flex items-start gap-2.5 py-1.5 pl-5 pr-3">
                 <button
                   type="button"
                   aria-label={done ? `Décocher ${st.name}` : `Cocher ${st.name}`}
-                  disabled={!canAct && !done}
+                  disabled={!canCheck && !done}
                   onClick={() => void toggleSubtask(db, st.id, Date.now())}
                   className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 ${
                     done ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
@@ -240,16 +264,16 @@ function SubtaskDropdown({ item, canAct, onOpen }: { item: DayItem; canAct: bool
                 <button
                   type="button"
                   onClick={onOpen}
-                  className={`min-w-0 flex-1 truncate text-left text-sm ${done ? 'text-muted line-through' : ''} ${running ? 'font-semibold text-accent' : ''}`}
+                  className={`min-w-0 flex-1 break-words text-left text-sm leading-snug ${done ? 'text-muted line-through' : ''} ${running ? 'font-semibold text-accent' : ''}`}
                 >
                   {st.name}
                 </button>
                 {st.estimateMin ? <span className="text-xs text-muted tabular">{formatMin(st.estimateMin)}</span> : null}
-                {canAct && !done && (
+                {timerEntryId && !done && (
                   <button
                     type="button"
                     aria-label={running ? 'Mettre en pause' : `Chrono sur ${st.name}`}
-                    onClick={() => void (running ? pauseTimer(db, Date.now()) : startTimer(db, item.id, Date.now(), st.id))}
+                    onClick={() => void (running ? pauseTimer(db, Date.now()) : startTimer(db, timerEntryId, Date.now(), st.id))}
                     className={`flex size-7 items-center justify-center rounded-full ${running ? 'bg-accent text-on-accent' : 'bg-accent-soft text-accent'}`}
                   >
                     <Icon name={running ? 'pause' : 'play'} className="size-3" fill={!running} />
