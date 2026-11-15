@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { Swipeable } from '../components/Swipe'
+import { remainingLabel } from '../components/pickers'
 import { CategoryDot, Icon, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
 import {
@@ -138,6 +139,11 @@ export function RoutinesView() {
                   <div className="mt-0.5 text-xs text-muted">
                     {frequencyLabel(r.frequency)}
                     {r.estimateMin ? ` · ${formatMin(r.estimateMin)}` : ''}
+                    {r.endDate && (
+                      <span className="font-medium text-accent">
+                        {' · '}jusqu'au {dayShort(r.endDate)} ({remainingLabel(r.endDate, today)})
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="shrink-0 text-right">

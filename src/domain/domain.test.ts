@@ -662,3 +662,12 @@ describe('supprimer, archiver, réactiver une routine', () => {
     expect(await loadDayItems(db, WED, MON)).toHaveLength(1)
   })
 })
+
+describe('routine avec date de fin', () => {
+  it('s\'arrête après la date choisie', async () => {
+    await createRoutine(db, { name: 'Cure', frequency: { type: 'daily' }, startDate: MON, endDate: WED }, at(MON))
+    await runRollover(db, at(MON))
+    expect((await loadDayItems(db, WED, MON))[0]).toMatchObject({ name: 'Cure', routineEnd: WED })
+    expect(await loadDayItems(db, THU, MON)).toHaveLength(0)
+  })
+})

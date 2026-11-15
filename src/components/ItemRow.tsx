@@ -1,5 +1,6 @@
 import type { HTMLAttributes, Ref } from 'react'
 import { type SwipeAction, Swipeable } from './Swipe'
+import { remainingLabel } from './pickers'
 import type { DayItem } from '../domain/stats'
 import { liveSpentSec } from '../domain/stats'
 import type { Category } from '../domain/types'
@@ -84,6 +85,13 @@ export function ItemRow({
         </span>,
       )
     }
+  }
+  if (item.kind === 'routine' && item.routineEnd && isOpen && mode === 'today') {
+    meta.push(
+      <span key="end" className="font-medium text-accent">
+        {remainingLabel(item.routineEnd, item.date)}
+      </span>,
+    )
   }
   if (item.subtasksTotal > 0) {
     meta.push(

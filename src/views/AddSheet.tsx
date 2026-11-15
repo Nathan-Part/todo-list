@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CategoryChips, EstimateChips, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, EndDateField, EstimateChips, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addTask, addUnplanned, createRoutine } from '../domain/actions'
@@ -33,6 +33,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
   const [repeat, setRepeat] = useState<Repeat>('never')
   const [weekdays, setWeekdays] = useState<number[]>([0, 2, 4])
   const [interval, setIntervalDays] = useState(2)
+  const [endDate, setEndDate] = useState<DayKey | undefined>()
   const [busy, setBusy] = useState(false)
 
   const repeating = repeat !== 'never'
@@ -56,7 +57,15 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
               : { type: 'interval', intervalDays: interval }
         await createRoutine(
           db,
-          { name, frequency, estimateMin: estimate, categoryId, note, startDate: plan === 'reserve' ? today : day },
+          {
+            name,
+            frequency,
+            estimateMin: estimate,
+            categoryId,
+            note,
+            startDate: plan === 'reserve' ? today : day,
+            endDate: endDate && endDate >= (plan === 'reserve' ? today : day) ? endDate : undefined,
+          },
           nowMs,
         )
         toast({ text: 'Routine créée', duration: 3000 })
@@ -204,6 +213,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             jours
           </div>
         )}
+        {repeating && <EndDateField value={endDate} onChange={setEndDate} min={day < today ? today : day} today={today} />}
       </Field>
 
           {!repeating && (

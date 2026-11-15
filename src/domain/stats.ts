@@ -22,6 +22,8 @@ export interface DayItem {
   runningSince?: number
   hasSessions: boolean
   taskDeleted: boolean
+  /** Date de fin de la routine, s'il y en a une. */
+  routineEnd?: DayKey
   subtasksDone: number
   subtasksTotal: number
   /** Intervalles chronométrés [début, fin] en ms (fin absente = en cours), pour la frise. */

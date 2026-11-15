@@ -9,7 +9,8 @@ import {
   startTimer,
   toggleSubtask,
 } from '../domain/actions'
-import type { Category, Session, Subtask } from '../domain/types'
+import { diffDays } from '../domain/dates'
+import type { Category, DayKey, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
 import { CategoryDot, Chip, Icon, btnSoft, inputBase } from './ui'
 
@@ -302,6 +303,53 @@ export function SubtasksEditor({
           </button>
         </div>
       </form>
+    </div>
+  )
+}
+
+/** « encore 20 j », « dernier jour », ou « terminée ». */
+export function remainingLabel(endDate: DayKey, today: DayKey): string {
+  const n = diffDays(endDate, today)
+  if (n < 0) return 'terminée'
+  if (n === 0) return 'dernier jour'
+  return `encore ${n} j`
+}
+
+/** Date de fin facultative d'une routine, avec le nombre de jours restants. */
+export function EndDateField({
+  value,
+  onChange,
+  min,
+  today,
+}: {
+  value: DayKey | undefined
+  onChange: (v: DayKey | undefined) => void
+  min: DayKey
+  today: DayKey
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+      <span>Jusqu'au</span>
+      <input
+        type="date"
+        min={min}
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        className={`${inputBase} w-auto`}
+        aria-label="Date de fin de la routine"
+      />
+      {value ? (
+        <>
+          <span className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold text-accent">
+            {remainingLabel(value, today)}
+          </span>
+          <button type="button" className="text-xs text-muted underline" onClick={() => onChange(undefined)}>
+            Sans fin
+          </button>
+        </>
+      ) : (
+        <span className="text-xs text-muted">facultatif, sans fin par défaut</span>
+      )}
     </div>
   )
 }

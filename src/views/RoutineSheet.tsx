@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
-import { CategoryChips, EstimateChips, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, EndDateField, EstimateChips, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import {
@@ -30,6 +30,7 @@ interface Form {
   estimate?: number
   categoryId?: string
   note: string
+  endDate?: string
 }
 
 const empty: Form = { name: '', kind: 'daily', weekdays: [0, 2, 4], interval: 2, note: '' }
@@ -43,6 +44,7 @@ function fromRoutine(r: Routine): Form {
     estimate: r.estimateMin,
     categoryId: r.categoryId,
     note: r.note ?? '',
+    endDate: r.archivedAt ? undefined : r.endDate,
   }
 }
 
@@ -87,6 +89,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           estimateMin: form.estimate,
           categoryId: form.categoryId,
           note: form.note,
+          endDate: form.endDate,
         },
         nowMs,
       )
@@ -101,6 +104,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           estimateMin: form.estimate,
           categoryId: form.categoryId,
           note: form.note.trim() || undefined,
+          ...(detail?.routine.archivedAt ? {} : { endDate: form.endDate }),
         },
         nowMs,
       )
@@ -161,6 +165,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
             jours, depuis le début de la routine
           </div>
         )}
+        <EndDateField value={form.endDate} onChange={(endDate) => set({ endDate })} min={today} today={today} />
       </Field>
 
       <Field label="Durée estimée">
