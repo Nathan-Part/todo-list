@@ -194,6 +194,14 @@ export async function loadReserve(d: AppDB, today: DayKey): Promise<ReserveItem[
     }))
     .sort((a, b) => {
       if (a.task.needsReview !== b.task.needsReview) return a.task.needsReview ? -1 : 1
+      // ordre manuel d'abord, puis les tâches jamais rangées selon le tri automatique
+      const pa = a.task.reservePosition
+      const pb = b.task.reservePosition
+      if (pa !== undefined || pb !== undefined) {
+        if (pa === undefined) return 1
+        if (pb === undefined) return -1
+        if (pa !== pb) return pa - pb
+      }
       if (a.task.dueDate !== b.task.dueDate) {
         if (!a.task.dueDate) return 1
         if (!b.task.dueDate) return -1

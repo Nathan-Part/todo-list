@@ -667,3 +667,16 @@ describe('ordre des routines', () => {
     expect((await loadDayItems(db, WED, MON)).map((i) => i.name)).toEqual(['B', 'A'])
   })
 })
+
+describe('ordre manuel de la réserve', () => {
+  it('l\'ordre choisi est gardé', async () => {
+    const { reorderReserve } = await import('./actions')
+    const a = await addTask(db, { name: 'A', plan: 'reserve' }, at(MON))
+    const b = await addTask(db, { name: 'B', plan: 'reserve' }, at(MON))
+    const c = await addTask(db, { name: 'C', plan: 'reserve' }, at(MON))
+    await reorderReserve(db, [c, a, b])
+    expect((await loadReserve(db, MON)).map((r) => r.task.name)).toEqual(['C', 'A', 'B'])
+    await addTask(db, { name: 'D', plan: 'reserve' }, at(MON))
+    expect((await loadReserve(db, MON)).map((r) => r.task.name)).toEqual(['C', 'A', 'B', 'D'])
+  })
+})

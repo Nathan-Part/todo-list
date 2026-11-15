@@ -508,6 +508,17 @@ export function reorderDay(d: AppDB, date: DayKey, orderedIds: string[]): Promis
   })
 }
 
+/** Ordre manuel des tâches de la réserve. */
+export function reorderReserve(d: AppDB, orderedTaskIds: string[]): Promise<void> {
+  return tx(d, async () => {
+    let pos = 1000
+    for (const id of orderedTaskIds) {
+      await d.tasks.update(id, { reservePosition: pos })
+      pos += 1000
+    }
+  })
+}
+
 /* ------------------------------------------------------------------ */
 /* Chrono et temps réel                                                */
 /* ------------------------------------------------------------------ */

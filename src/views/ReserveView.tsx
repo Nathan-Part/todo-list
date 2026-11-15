@@ -1,7 +1,18 @@
+import {
+  DndContext,
+  type DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useEffect, useState } from 'react'
 import { Swipeable } from '../components/Swipe'
 import { CategoryDot, Icon, btnSoft } from '../components/ui'
 import { db } from '../db'
-import { deleteTask, planTask, restoreTask, snapshotTask } from '../domain/actions'
+import { deleteTask, planTask, reorderReserve, restoreTask, snapshotTask } from '../domain/actions'
 import { useToast } from '../lib/toast'
 import { addDays, diffDays } from '../domain/dates'
 import type { ReserveItem } from '../domain/queries'
@@ -11,6 +22,7 @@ import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
 
 function ReserveRow({ r }: { r: ReserveItem }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.task.id })
   const { today, setSheet } = useNav()
   const { byId } = useCategories()
   const { completeTaskById } = useItemActions()
@@ -31,6 +43,19 @@ function ReserveRow({ r }: { r: ReserveItem }) {
 
   return (
     <Swipeable
+      rootRef={setNodeRef}
+      rootProps={{
+        ...attributes,
+        ...listeners,
+        role: 'listitem',
+        className: isDragging ? 'shadow-lg ring-2 ring-accent' : '',
+        style: {
+          transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined,
+          transition,
+          zIndex: isDragging ? 20 : undefined,
+          position: 'relative',
+        },
+      }}
       actions={[
         { label: "Aujourd'hui", tone: 'accent', onClick: () => void plan(today, "aujourd'hui") },
         { label: 'Demain', tone: 'warn', onClick: () => void plan(addDays(today, 1), 'demain') },
@@ -80,6 +105,38 @@ function ReserveRow({ r }: { r: ReserveItem }) {
   )
 }
 
+/** Section de la réserve dont on range les tâches par appui long puis glisser. */
+function SortableSection({ items }: { items: ReserveItem[] }) {
+  const [order, setOrder] = useState<string[] | null>(null)
+  useEffect(() => setOrder(null), [items])
+  const list = order
+    ? order.map((id) => items.find((r) => r.task.id === id)).filter((r): r is ReserveItem => !!r)
+    : items
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const ids = list.map((r) => r.task.id)
+    const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
+    setOrder(next)
+    void reorderReserve(db, next)
+  }
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={list.map((r) => r.task.id)} strategy={verticalListSortingStrategy}>
+        <div className="space-y-2" role="list">
+          {list.map((r) => (
+            <ReserveRow key={r.task.id} r={r} />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+}
+
 export function ReserveView() {
   const { today, setSheet } = useNav()
   const reserve = useReserve(today)
@@ -109,22 +166,17 @@ export function ReserveView() {
               Trier une par une
             </button>
           </div>
-          <div className="space-y-2">
-            {review.map((r) => (
-              <ReserveRow key={r.task.id} r={r} />
-            ))}
-          </div>
+          <SortableSection items={review} />
         </section>
       )}
 
       {rest.length > 0 && (
         <section className="mt-5">
           <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted">En réserve · {rest.length}</h3>
-          <div className="space-y-2">
-            {rest.map((r) => (
-              <ReserveRow key={r.task.id} r={r} />
-            ))}
-          </div>
+          <SortableSection items={rest} />
+          {rest.length > 1 && (
+            <p className="mt-2 px-1 text-xs text-muted">Appui long sur une tâche puis glisse pour changer l'ordre.</p>
+          )}
         </section>
       )}
 

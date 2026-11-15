@@ -26,6 +26,8 @@ export interface Task {
   /** Arrivée en réserve par le changement de jour, pas encore triée. */
   needsReview: boolean
   reserveSince?: DayKey
+  /** Ordre manuel dans la réserve (absent = après les tâches rangées, tri automatique). */
+  reservePosition?: number
   isUnplanned: boolean
   doneDate?: DayKey
   createdAt: number
