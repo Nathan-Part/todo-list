@@ -5,6 +5,7 @@ import {
   addSubtask,
   deleteSession,
   deleteSubtask,
+  updateSubtask,
   pauseTimer,
   startTimer,
   toggleSubtask,
@@ -12,7 +13,7 @@ import {
 import { diffDays } from '../domain/dates'
 import type { Category, DayKey, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
-import { CategoryDot, Chip, Icon, btnSoft, inputBase } from './ui'
+import { CategoryDot, Chip, Icon, btnGhost, btnPrimary, btnSoft, inputBase } from './ui'
 
 const PRESETS = [15, 30, 45, 60, 90, 120]
 
@@ -229,6 +230,12 @@ export function SubtasksEditor({
 }) {
   const [name, setName] = useState('')
   const [minutes, setMinutes] = useState<number | undefined>()
+  const [editing, setEditing] = useState<{ id: string; name: string; minutes?: number } | null>(null)
+  const saveEdit = async () => {
+    if (!editing || !editing.name.trim()) return
+    await updateSubtask(db, editing.id, { name: editing.name.trim(), estimateMin: editing.minutes })
+    setEditing(null)
+  }
   const add = async () => {
     if (!name.trim()) return
     await addSubtask(db, taskId, { name, estimateMin: minutes })
@@ -242,6 +249,29 @@ export function SubtasksEditor({
           {subtasks.map((st) => {
             const done = st.status === 'done'
             const running = runningSubtaskId === st.id
+            if (editing?.id === st.id) {
+              return (
+                <li key={st.id} className="space-y-2 bg-bg px-3 py-3">
+                  <input
+                    autoFocus
+                    value={editing.name}
+                    onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                    onKeyDown={(e) => e.key === 'Enter' && void saveEdit()}
+                    aria-label="Nom de l'étape"
+                    className={`${inputBase} w-full bg-surface`}
+                  />
+                  <DurationInput value={editing.minutes} onChange={(m) => setEditing({ ...editing, minutes: m })} />
+                  <div className="flex gap-2">
+                    <button type="button" className={btnPrimary} disabled={!editing.name.trim()} onClick={() => void saveEdit()}>
+                      Enregistrer
+                    </button>
+                    <button type="button" className={btnGhost} onClick={() => setEditing(null)}>
+                      Annuler
+                    </button>
+                  </div>
+                </li>
+              )
+            }
             return (
               <li key={st.id} className="flex items-center gap-2.5 px-3 py-2">
                 <button
@@ -254,10 +284,17 @@ export function SubtasksEditor({
                 >
                   <Icon name="check" className="size-3" strokeWidth={3} />
                 </button>
-                <span className={`min-w-0 flex-1 truncate text-[15px] ${done ? 'text-muted line-through' : ''}`}>
-                  {st.name}
-                </span>
-                {st.estimateMin ? <span className="text-xs text-muted tabular">{formatMin(st.estimateMin)}</span> : null}
+                <button
+                  type="button"
+                  aria-label={`Modifier ${st.name}`}
+                  onClick={() => setEditing({ id: st.id, name: st.name, minutes: st.estimateMin })}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span className={`min-w-0 flex-1 truncate text-[15px] ${done ? 'text-muted line-through' : ''}`}>
+                    {st.name}
+                  </span>
+                  <span className="text-xs text-muted tabular">{st.estimateMin ? formatMin(st.estimateMin) : 'durée ?'}</span>
+                </button>
                 {timerEntryId && !done && (
                   <button
                     type="button"
@@ -287,6 +324,7 @@ export function SubtasksEditor({
           })}
         </ul>
       )}
+      {subtasks.length > 0 && <p className="mb-2 text-xs text-muted">Touche une étape pour changer son nom ou sa durée.</p>}
       <form
         className="space-y-2"
         onSubmit={(e) => {

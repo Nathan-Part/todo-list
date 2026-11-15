@@ -185,7 +185,7 @@ export function ItemRow({
       )}
       </div>
       {item.subtasksTotal > 0 && (
-        <SubtaskDropdown item={item} canAct={mode === 'today' && isOpen} />
+        <SubtaskDropdown item={item} canAct={mode === 'today' && isOpen} onOpen={() => onOpen(item)} />
       )}
     </Swipeable>
   )
@@ -194,7 +194,7 @@ export function ItemRow({
 /** Étapes ouvertes, mémorisées par tâche le temps de la session. */
 const openSubtasks = new Set<string>()
 
-function SubtaskDropdown({ item, canAct }: { item: DayItem; canAct: boolean }) {
+function SubtaskDropdown({ item, canAct, onOpen }: { item: DayItem; canAct: boolean; onOpen: () => void }) {
   const key = item.taskId ?? item.id
   const [open, setOpen] = useState(() => openSubtasks.has(key))
   const toggle = () => {
@@ -237,9 +237,13 @@ function SubtaskDropdown({ item, canAct }: { item: DayItem; canAct: boolean }) {
                 >
                   <Icon name="check" className="size-3" strokeWidth={3} />
                 </button>
-                <span className={`min-w-0 flex-1 truncate text-sm ${done ? 'text-muted line-through' : ''} ${running ? 'font-semibold text-accent' : ''}`}>
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  className={`min-w-0 flex-1 truncate text-left text-sm ${done ? 'text-muted line-through' : ''} ${running ? 'font-semibold text-accent' : ''}`}
+                >
                   {st.name}
-                </span>
+                </button>
                 {st.estimateMin ? <span className="text-xs text-muted tabular">{formatMin(st.estimateMin)}</span> : null}
                 {canAct && !done && (
                   <button
