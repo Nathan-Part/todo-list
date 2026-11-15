@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { DayPicker } from '../components/DayPicker'
-import { CategoryChips, EstimateChips, SessionsEditor, SubtasksEditor } from '../components/pickers'
+import { CategoryChips, EstimateChips, SessionsEditor, SubtasksEditor, TimeField } from '../components/pickers'
 import { Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import {
@@ -239,6 +239,9 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
 
       {task.status !== 'deleted' && (
         <>
+          <Field label="Heure">
+            <TimeField value={task.time} onChange={(v) => void updateTask(db, task.id, { time: v })} />
+          </Field>
           <Field label="Échéance">
             <div className="flex items-center gap-2">
               <input

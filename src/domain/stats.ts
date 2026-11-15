@@ -14,6 +14,8 @@ export interface DayItem {
   position: number
   name: string
   estimateMin?: number
+  /** Heure prévue « HH:MM ». */
+  time?: string
   categoryId?: string
   unplanned: boolean
   /** Somme des sessions terminées, en secondes. */

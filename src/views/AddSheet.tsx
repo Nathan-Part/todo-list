@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CategoryChips, EndDateField, EstimateChips, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, EndDateField, EstimateChips, TimeField, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addTask, addUnplanned, createRoutine } from '../domain/actions'
@@ -34,6 +34,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
   const [weekdays, setWeekdays] = useState<number[]>([0, 2, 4])
   const [interval, setIntervalDays] = useState(2)
   const [endDate, setEndDate] = useState<DayKey | undefined>()
+  const [time, setTime] = useState<string | undefined>()
   const [busy, setBusy] = useState(false)
 
   const repeating = repeat !== 'never'
@@ -63,6 +64,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             estimateMin: estimate,
             categoryId,
             note,
+            time,
             startDate: plan === 'reserve' ? today : day,
             endDate: endDate && endDate >= (plan === 'reserve' ? today : day) ? endDate : undefined,
           },
@@ -77,6 +79,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             estimateMin: estimate,
             categoryId,
             note,
+            time,
             dueDate: dueDate || undefined,
             plan: plan === 'reserve' ? 'reserve' : day,
           },
@@ -167,6 +170,12 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
           />
         )}
       </Field>
+
+      {plan !== 'reserve' && (
+        <Field label="Heure">
+          <TimeField value={time} onChange={setTime} />
+        </Field>
+      )}
 
       <Field label="Catégorie">
         <CategoryChips value={categoryId} onChange={setCategoryId} categories={categories} />

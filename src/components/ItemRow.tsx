@@ -6,7 +6,7 @@ import { remainingLabel } from './pickers'
 import type { DayItem } from '../domain/stats'
 import { liveSpentSec } from '../domain/stats'
 import type { Category } from '../domain/types'
-import { dayShort, formatClock, formatMin, formatSec } from '../lib/format'
+import { dayShort, formatClock, formatMin, formatSec, timeOfDay } from '../lib/format'
 import { CategoryDot, Icon } from './ui'
 
 export type RowMode = 'today' | 'future' | 'past'
@@ -63,8 +63,23 @@ export function ItemRow({
   const closedLook = !isOpen && !isDone
   const status = statusText(item)
 
-  // Ligne de détails : durée, temps passé, catégorie, nature
+  // Ligne de détails : heure, durée, temps passé, catégorie, nature
   const meta: React.ReactNode[] = []
+  if (item.time) {
+    const late = mode === 'today' && isOpen && timeOfDay(now) > item.time
+    meta.push(
+      <span
+        key="time"
+        className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-semibold tabular ${
+          late ? 'bg-bad-soft text-bad' : 'bg-accent-soft text-accent'
+        }`}
+      >
+        <Icon name="clock" className="size-3" />
+        {item.time}
+        {late ? ' · en retard' : ''}
+      </span>,
+    )
+  }
   if (isDone) {
     if (spent > 0) meta.push(<span key="t">{formatSec(spent)}{item.estimateMin ? ` (${formatMin(item.estimateMin)})` : ''}</span>)
     else if (item.estimateMin) meta.push(<span key="e">{formatMin(item.estimateMin)}</span>)

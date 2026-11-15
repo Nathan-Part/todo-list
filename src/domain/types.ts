@@ -21,6 +21,8 @@ export interface Task {
   categoryId?: string
   estimateMin?: number
   dueDate?: DayKey
+  /** Heure prévue « HH:MM », facultative. */
+  time?: string
   note?: string
   status: 'todo' | 'done' | 'deleted'
   /** Arrivée en réserve par le changement de jour, pas encore triée. */
@@ -51,6 +53,8 @@ export interface Routine {
   name: string
   categoryId?: string
   estimateMin?: number
+  /** Heure prévue « HH:MM », facultative. */
+  time?: string
   note?: string
   frequency: Frequency
   startDate: DayKey

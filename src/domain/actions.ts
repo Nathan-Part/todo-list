@@ -105,6 +105,7 @@ export interface NewTask {
   estimateMin?: number
   categoryId?: string
   dueDate?: DayKey
+  time?: string
   note?: string
   /** Jour prévu, ou « reserve » (RG-11). */
   plan: DayKey | 'reserve'
@@ -119,6 +120,7 @@ export function addTask(d: AppDB, input: NewTask, nowMs: number): Promise<string
       categoryId: input.categoryId,
       estimateMin: input.estimateMin,
       dueDate: input.dueDate,
+      time: input.time || undefined,
       note: input.note?.trim() || undefined,
       status: 'todo',
       needsReview: false,
@@ -133,7 +135,7 @@ export function addTask(d: AppDB, input: NewTask, nowMs: number): Promise<string
 }
 
 export type TaskChanges = Partial<
-  Pick<Task, 'name' | 'categoryId' | 'estimateMin' | 'dueDate' | 'note'>
+  Pick<Task, 'name' | 'categoryId' | 'estimateMin' | 'dueDate' | 'note' | 'time'>
 >
 
 export async function updateTask(d: AppDB, taskId: string, changes: TaskChanges) {
@@ -722,6 +724,7 @@ export interface RoutineInput {
   estimateMin?: number
   categoryId?: string
   note?: string
+  time?: string
 }
 
 /**
@@ -767,6 +770,7 @@ export function createRoutine(d: AppDB, input: RoutineInput, nowMs: number): Pro
       name: input.name.trim(),
       categoryId: input.categoryId,
       estimateMin: input.estimateMin,
+      time: input.time || undefined,
       note: input.note?.trim() || undefined,
       frequency: input.frequency,
       startDate: input.startDate ?? today,
@@ -781,7 +785,7 @@ export function createRoutine(d: AppDB, input: RoutineInput, nowMs: number): Pro
 }
 
 export type RoutineChanges = Partial<
-  Pick<Routine, 'name' | 'categoryId' | 'estimateMin' | 'note' | 'frequency' | 'endDate'>
+  Pick<Routine, 'name' | 'categoryId' | 'estimateMin' | 'note' | 'frequency' | 'endDate' | 'time'>
 >
 
 /** Une modification s'applique à partir d'aujourd'hui ; le passé ne change jamais (RG-38). */

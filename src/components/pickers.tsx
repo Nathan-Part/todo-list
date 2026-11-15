@@ -458,3 +458,25 @@ export function EndDateField({
     </div>
   )
 }
+
+/** Heure prévue facultative (« HH:MM »). */
+export function TimeField({ value, onChange }: { value: string | undefined; onChange: (v: string | undefined) => void }) {
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <input
+        type="time"
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value || undefined)}
+        aria-label="Heure prévue"
+        className={`${inputBase} w-auto`}
+      />
+      {value ? (
+        <button type="button" className="text-sm text-muted underline" onClick={() => onChange(undefined)}>
+          Retirer l'heure
+        </button>
+      ) : (
+        <span className="text-xs text-muted">facultatif, pour une tâche à faire à un moment précis</span>
+      )}
+    </div>
+  )
+}
