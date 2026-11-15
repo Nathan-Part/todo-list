@@ -654,3 +654,16 @@ describe('routine avec date de fin', () => {
     expect(await loadDayItems(db, THU, MON)).toHaveLength(0)
   })
 })
+
+describe('ordre des routines', () => {
+  it('le nouvel ordre s\'applique aux routines et aux occurrences du jour', async () => {
+    const { reorderRoutines } = await import('./actions')
+    const a = await createRoutine(db, { name: 'A', frequency: { type: 'daily' }, startDate: MON }, at(MON))
+    const b = await createRoutine(db, { name: 'B', frequency: { type: 'daily' }, startDate: MON }, at(MON))
+    await runRollover(db, at(MON))
+    expect((await loadDayItems(db, MON, MON)).map((i) => i.name)).toEqual(['A', 'B'])
+    await reorderRoutines(db, [b, a], at(MON))
+    expect((await loadDayItems(db, MON, MON)).map((i) => i.name)).toEqual(['B', 'A'])
+    expect((await loadDayItems(db, WED, MON)).map((i) => i.name)).toEqual(['B', 'A'])
+  })
+})

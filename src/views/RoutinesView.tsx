@@ -1,12 +1,23 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { Swipeable } from '../components/Swipe'
+import {
+  DndContext,
+  type DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { type ReactNode, useEffect, useState } from 'react'
+import { type SwipeAction, Swipeable } from '../components/Swipe'
 import { remainingLabel } from '../components/pickers'
 import { CategoryDot, Icon, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
 import {
   archiveRoutine,
   deleteRoutine,
+  reorderRoutines,
   endPause,
   restoreRoutine,
   snapshotRoutine,
@@ -33,11 +44,41 @@ export const GRID_STYLE: Record<GridState, string> = {
   future: 'bg-transparent border border-dashed border-accent/60',
 }
 
+/** Routine qu'on range par appui long puis glisser, et qu'on glisse à gauche pour ses actions. */
+function SortableRoutine({ id, actions, children }: { id: string; actions: SwipeAction[]; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  return (
+    <Swipeable
+      actions={actions}
+      rootRef={setNodeRef}
+      rootProps={{
+        ...attributes,
+        ...listeners,
+        role: 'listitem',
+        className: isDragging ? 'shadow-lg ring-2 ring-accent' : '',
+        style: {
+          transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined,
+          transition,
+          zIndex: isDragging ? 20 : undefined,
+          position: 'relative',
+        },
+      }}
+    >
+      {children}
+    </Swipeable>
+  )
+}
+
 export function RoutinesView() {
   const { today, setSheet } = useNav()
   const { byId } = useCategories()
   const toast = useToast()
   const [showArchived, setShowArchived] = useState(false)
+  const [order, setOrder] = useState<string[] | null>(null)
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+  )
   const data = useLiveQuery(async () => {
     const all = await db.routines.toArray()
     const archived = all.filter((r) => r.archivedAt).sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0))
@@ -58,6 +99,23 @@ export function RoutinesView() {
       .filter((p) => p.routineId && p.fromDate <= today && (p.toDate === undefined || p.toDate >= today))
       .map((p) => p.routineId),
   )
+
+  // l'ordre local n'est qu'un relais le temps que la base se mette à jour
+  useEffect(() => setOrder(null), [data])
+  const details = (() => {
+    const list = data?.details ?? []
+    if (!order) return list
+    const byIdMap = new Map(list.map((d) => [d.routine.id, d]))
+    return order.map((id) => byIdMap.get(id)).filter((d): d is RoutineDetail => !!d)
+  })()
+  function onDragEnd(e: DragEndEvent) {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const ids = details.map((d) => d.routine.id)
+    const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
+    setOrder(next)
+    void reorderRoutines(db, next, Date.now())
+  }
 
   const remove = async (r: Routine) => {
     const snap = await snapshotRoutine(db, r.id)
@@ -107,14 +165,17 @@ export function RoutinesView() {
         )
       )}
 
-      <div className="mt-4 space-y-2">
-        {data?.details.map(({ routine: r, month, grid }) => {
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={details.map((d) => d.routine.id)} strategy={verticalListSortingStrategy}>
+      <div className="mt-4 space-y-2" role="list">
+        {details.map(({ routine: r, month, grid }) => {
           const cat = r.categoryId ? byId.get(r.categoryId) : undefined
           const last7 = grid.filter((g) => g.day <= today).slice(-7)
           const pct = month.total > 0 ? Math.round((month.done / month.total) * 100) : undefined
           return (
-            <Swipeable
+            <SortableRoutine
               key={r.id}
+              id={r.id}
               actions={[
                 { label: 'Archiver', tone: 'warn', onClick: () => void archive(r) },
                 { label: 'Supprimer', tone: 'bad', onClick: () => void remove(r), full: true },
@@ -157,7 +218,7 @@ export function RoutinesView() {
                 ))}
               </div>
             </button>
-            </Swipeable>
+            </SortableRoutine>
           )
         })}
         {data && data.details.length === 0 && (
@@ -166,6 +227,11 @@ export function RoutinesView() {
           </div>
         )}
       </div>
+      </SortableContext>
+      </DndContext>
+      {details.length > 1 && (
+        <p className="mt-2 px-1 text-xs text-muted">Appui long sur une routine puis glisse pour changer l'ordre.</p>
+      )}
 
       {data && data.archived.length > 0 && (
         <section className="mt-6">

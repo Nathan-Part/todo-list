@@ -827,6 +827,26 @@ export function unarchiveRoutine(d: AppDB, id: string, nowMs: number): Promise<v
   })
 }
 
+/**
+ * Ordre des routines. Il sert d'ordre par défaut pour leurs occurrences ;
+ * on l'applique aussi aux occurrences encore à faire à partir d'aujourd'hui.
+ */
+export function reorderRoutines(d: AppDB, orderedIds: string[], nowMs: number): Promise<void> {
+  return tx(d, async () => {
+    const today = dayKeyOf(nowMs)
+    let pos = 1000
+    for (const id of orderedIds) {
+      await d.routines.update(id, { position: pos })
+      await d.entries
+        .where('routineId')
+        .equals(id)
+        .filter((e) => e.status === 'todo' && e.date >= today)
+        .modify({ position: pos })
+      pos += 1000
+    }
+  })
+}
+
 /** Archive la routine : plus aucune occurrence, historique conservé (RG-39). */
 export function archiveRoutine(d: AppDB, id: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
