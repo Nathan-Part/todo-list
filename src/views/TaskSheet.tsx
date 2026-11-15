@@ -116,7 +116,11 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
             type="button"
             className={`${btnPrimary} flex-1`}
             onClick={async () => {
-              await completeTaskById(task, sessions.length > 0)
+              await completeTaskById(
+                task,
+                sessions.length > 0,
+                sessions.reduce((n, s) => n + (s.running ? Math.max(0, (Date.now() - (s.startAt ?? Date.now())) / 1000) : s.durationSec), 0),
+              )
               onClose()
             }}
           >

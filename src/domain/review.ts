@@ -26,6 +26,8 @@ export interface WeekReview {
   unplanned: { count: number; sec: number }
   routines: { routineId: string; name: string; done: number; total: number }[]
   reserveCount: number
+  /** Réel face au prévu, par catégorie (éléments faits ayant les deux). */
+  accuracyByCategory: { categoryId?: string; realSec: number; estSec: number; count: number }[]
 }
 
 /** Bilan d'une semaine du lundi au dimanche (E9). */
@@ -43,6 +45,7 @@ export async function loadWeekReview(
   ])
 
   const byCat = new Map<string | undefined, number>()
+  const accCat = new Map<string | undefined, { realSec: number; estSec: number; count: number }>()
   const routines = new Map<string, { name: string; done: number; total: number }>()
   let planned = 0
   let done = 0
@@ -76,6 +79,11 @@ export async function loadWeekReview(
       if (i.status === 'done' && i.estimateMin && i.spentSec > 0) {
         estSec += i.estimateMin * 60
         realSec += i.spentSec
+        const a = accCat.get(i.categoryId) ?? { realSec: 0, estSec: 0, count: 0 }
+        a.realSec += i.spentSec
+        a.estSec += i.estimateMin * 60
+        a.count++
+        accCat.set(i.categoryId, a)
       }
       if (i.kind === 'routine' && i.routineId && (i.status === 'done' || i.status === 'not_done')) {
         const cur = routines.get(i.routineId) ?? { name: i.name, done: 0, total: 0 }
@@ -97,5 +105,8 @@ export async function loadWeekReview(
     unplanned: { count: unplannedCount, sec: unplannedSec },
     routines: [...routines.entries()].map(([routineId, v]) => ({ routineId, ...v })),
     reserveCount: reserve.length,
+    accuracyByCategory: [...accCat.entries()]
+      .map(([categoryId, v]) => ({ categoryId, ...v }))
+      .sort((a, b) => Math.abs(b.realSec / b.estSec - 1) - Math.abs(a.realSec / a.estSec - 1)),
   }
 }

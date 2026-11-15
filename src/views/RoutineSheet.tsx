@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
-import { CategoryChips, EndDateField, EstimateChips, TimeField, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, EndDateField, EstimateChips, TimeField, TimeInsight, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import {
@@ -233,12 +233,9 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
             </div>
           </Field>
 
-          {detail.avgRealMin !== undefined && (
-            <Field label="Temps réel">
-              <div className="text-sm">
-                Moyenne : <span className="font-semibold">{formatMin(detail.avgRealMin)}</span>
-                {detail.routine.estimateMin ? ` (estimé ${formatMin(detail.routine.estimateMin)})` : ''}
-              </div>
+          {detail.stats ? (
+            <Field label="Ton temps réel">
+              <TimeInsight stats={detail.stats} estimateMin={detail.routine.estimateMin} />
               {detail.suggestedMin !== undefined && (
                 <button
                   type="button"
@@ -252,6 +249,12 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
                   Ajuster l'estimation à {formatMin(detail.suggestedMin)}
                 </button>
               )}
+            </Field>
+          ) : (
+            <Field label="Ton temps réel">
+              <p className="text-sm text-muted">
+                Lance le chrono (ou indique la durée en cochant) : l'app calculera combien de temps cette routine te prend vraiment.
+              </p>
             </Field>
           )}
 

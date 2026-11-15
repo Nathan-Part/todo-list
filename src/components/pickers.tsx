@@ -22,6 +22,7 @@ import {
   toggleSubtask,
 } from '../domain/actions'
 import { diffDays } from '../domain/dates'
+import { type TimeStats, deviationPct, spreadLabel, trendLabel } from '../domain/insights'
 import type { Category, DayKey, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
 import { CategoryDot, Chip, Icon, btnGhost, btnPrimary, btnSoft, inputBase } from './ui'
@@ -477,6 +478,54 @@ export function TimeField({ value, onChange }: { value: string | undefined; onCh
       ) : (
         <span className="text-xs text-muted">facultatif, pour une tâche à faire à un moment précis</span>
       )}
+    </div>
+  )
+}
+
+/** Pastille « +15 % / −10 % / pile » : réel habituel face à l'estimation. */
+export function DeviationBadge({ realMin, estimateMin }: { realMin: number; estimateMin?: number }) {
+  if (!estimateMin) return null
+  const pct = deviationPct(realMin, estimateMin)
+  const ok = Math.abs(pct) <= 10
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular ${
+        ok ? 'bg-good-soft text-good' : pct > 0 ? 'bg-bad-soft text-bad' : 'bg-accent-soft text-accent'
+      }`}
+    >
+      {ok ? 'dans les temps' : pct > 0 ? `+${pct} % que prévu` : `${pct} % que prévu`}
+    </span>
+  )
+}
+
+/** Analyse du temps réel d'une routine : habituel, écart, mini/maxi, régularité, tendance. */
+export function TimeInsight({ stats, estimateMin }: { stats: TimeStats; estimateMin?: number }) {
+  const trend = trendLabel(stats)
+  return (
+    <div className="rounded-2xl border border-line bg-bg p-3 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span>
+          D'habitude <span className="font-semibold">{formatMin(stats.typical)}</span>
+          {estimateMin ? <span className="text-muted"> (prévu {formatMin(estimateMin)})</span> : null}
+        </span>
+        <DeviationBadge realMin={stats.typical} estimateMin={estimateMin} />
+      </div>
+      <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+        <dt className="text-muted">Plus rapide</dt>
+        <dd className="text-right tabular">{formatMin(stats.min)}</dd>
+        <dt className="text-muted">Plus long</dt>
+        <dd className="text-right tabular">{formatMin(stats.max)}</dd>
+        <dt className="text-muted">Régularité</dt>
+        <dd className="text-right">{spreadLabel(stats)}</dd>
+        {trend && (
+          <>
+            <dt className="text-muted">Tendance</dt>
+            <dd className={`text-right font-medium ${stats.trend === 'faster' ? 'text-good' : 'text-warn'}`}>{trend}</dd>
+          </>
+        )}
+        <dt className="text-muted">Calculé sur</dt>
+        <dd className="text-right tabular">{stats.count} fois</dd>
+      </dl>
     </div>
   )
 }

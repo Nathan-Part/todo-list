@@ -204,6 +204,34 @@ export function BilanView() {
             </div>
           </section>
 
+          {review.accuracyByCategory.length > 0 && (
+            <section className="mt-3 rounded-2xl border border-line/70 bg-surface p-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Prévu ou réel, par catégorie</h3>
+              <ul className="mt-2 divide-y divide-line">
+                {review.accuracyByCategory.map((c) => {
+                  const cat = c.categoryId ? byId.get(c.categoryId) : undefined
+                  const pct = Math.round((c.realSec / c.estSec - 1) * 100)
+                  return (
+                    <li key={c.categoryId ?? 'none'} className="flex items-center justify-between gap-3 py-2 text-sm">
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <CategoryDot color={cat?.color ?? '#94a3b8'} />
+                        <span className="truncate">{cat?.name ?? 'Sans catégorie'}</span>
+                        <span className="text-xs text-muted">({c.count})</span>
+                      </span>
+                      <span
+                        className={`shrink-0 text-right text-xs font-semibold ${
+                          Math.abs(pct) <= 10 ? 'text-good' : pct > 0 ? 'text-bad' : 'text-accent'
+                        }`}
+                      >
+                        {Math.abs(pct) <= 10 ? 'dans les temps' : pct > 0 ? `${pct} % de plus que prévu` : `${-pct} % de moins que prévu`}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
           {review.routines.length > 0 && (
             <section className="mt-3 rounded-2xl border border-line/70 bg-surface p-4">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted">Routines</h3>

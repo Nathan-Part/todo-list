@@ -11,7 +11,8 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { type ReactNode, useEffect, useState } from 'react'
 import { type SwipeAction, Swipeable } from '../components/Swipe'
-import { remainingLabel } from '../components/pickers'
+import { DeviationBadge, remainingLabel } from '../components/pickers'
+import { trendLabel } from '../domain/insights'
 import { CategoryDot, Icon, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
 import {
@@ -168,7 +169,7 @@ export function RoutinesView() {
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <SortableContext items={details.map((d) => d.routine.id)} strategy={verticalListSortingStrategy}>
       <div className="mt-4 space-y-2" role="list">
-        {details.map(({ routine: r, month, grid }) => {
+        {details.map(({ routine: r, month, grid, stats }) => {
           const cat = r.categoryId ? byId.get(r.categoryId) : undefined
           const last7 = grid.filter((g) => g.day <= today).slice(-7)
           const pct = month.total > 0 ? Math.round((month.done / month.total) * 100) : undefined
@@ -206,6 +207,18 @@ export function RoutinesView() {
                       </span>
                     )}
                   </div>
+                  {stats && (
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                      <span>
+                        <Icon name="clock" className="mr-0.5 inline size-3" />
+                        d'habitude <span className="font-semibold text-ink">{formatMin(stats.typical)}</span>
+                        {stats.count >= 3 && stats.max - stats.min >= 5 ? ` (${formatMin(stats.min)}–${formatMin(stats.max)})` : ''}
+                      </span>
+                      <DeviationBadge realMin={stats.typical} estimateMin={r.estimateMin} />
+                      {stats.spread === 'very_variable' && <span className="text-warn">varie beaucoup</span>}
+                      {trendLabel(stats) && <span>{trendLabel(stats)}</span>}
+                    </div>
+                  )}
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-lg font-semibold tabular leading-none">{pct !== undefined ? `${pct} %` : '–'}</div>

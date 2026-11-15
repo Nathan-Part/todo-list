@@ -1,11 +1,13 @@
+import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { CategoryChips, EndDateField, EstimateChips, TimeField, WeekdayToggles } from '../components/pickers'
-import { Chip, Field, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
+import { Chip, Field, Icon, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addTask, addUnplanned, createRoutine } from '../domain/actions'
+import { suggestEstimate } from '../domain/insights'
 import { addDays } from '../domain/dates'
 import type { DayKey, Frequency } from '../domain/types'
-import { dayShort } from '../lib/format'
+import { dayShort, formatMin } from '../lib/format'
 import { useCategories } from '../lib/hooks'
 import { useNav } from '../lib/nav'
 import { useToast } from '../lib/toast'
@@ -35,6 +37,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
   const [interval, setIntervalDays] = useState(2)
   const [endDate, setEndDate] = useState<DayKey | undefined>()
   const [time, setTime] = useState<string | undefined>()
+  const suggestion = useLiveQuery(() => suggestEstimate(db, name), [name])
   const [busy, setBusy] = useState(false)
 
   const repeating = repeat !== 'never'
@@ -140,6 +143,20 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
       </form>
 
       <Field label="Durée estimée">
+        {suggestion && suggestion.count >= 1 && estimate !== Math.round(suggestion.typical) && (
+          <button
+            type="button"
+            onClick={() => setEstimate(Math.max(1, Math.round(suggestion.typical)))}
+            className="mb-2 flex w-full items-center gap-2 rounded-xl bg-accent-soft px-3 py-2 text-left text-sm text-accent"
+          >
+            <Icon name="clock" className="size-4 shrink-0" />
+            <span className="flex-1">
+              D'après tes {suggestion.count > 1 ? `${suggestion.count} dernières fois` : 'dernière fois'} :{' '}
+              <span className="font-semibold">{formatMin(suggestion.typical)}</span>
+            </span>
+            <span className="font-semibold">Utiliser</span>
+          </button>
+        )}
         <EstimateChips value={estimate} onChange={setEstimate} />
       </Field>
 

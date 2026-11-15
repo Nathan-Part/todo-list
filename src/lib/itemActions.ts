@@ -20,7 +20,8 @@ import {
   taskEntryId,
 } from '../domain/actions'
 import { dayKeyOf } from '../domain/dates'
-import type { DayItem } from '../domain/stats'
+import { completionFeedback } from '../domain/insights'
+import { type DayItem, liveSpentSec } from '../domain/stats'
 import type { Task } from '../domain/types'
 import { dayShort, formatMin } from './format'
 import { useNav } from './nav'
@@ -35,8 +36,15 @@ export function useItemActions() {
     async (item: DayItem) => {
       const nowMs = Date.now()
       const today = dayKeyOf(nowMs)
+      const realSec = liveSpentSec(item, nowMs)
       await completeEntry(db, item.id, nowMs)
-      if (item.hasSessions || item.unplanned) return
+      if (item.unplanned) return
+      if (item.hasSessions) {
+        // retour immédiat : temps réel face à l'estimation
+        const msg = completionFeedback(realSec, item.estimateMin)
+        if (msg) toast({ text: msg, duration: 4500 })
+        return
+      }
       // Cochée sans chrono : proposition discrète de durée réelle (RG-65)
       const entryId = item.kind === 'task' && item.date > today ? taskEntryId(item.taskId!, today) : item.id
       if (item.estimateMin) {
@@ -59,11 +67,16 @@ export function useItemActions() {
 
   /** Termine une tâche depuis sa fiche (planifiée ou en réserve). */
   const completeTaskById = useCallback(
-    async (task: Task, hasSessions: boolean) => {
+    async (task: Task, hasSessions: boolean, spentSec = 0) => {
       const nowMs = Date.now()
       const today = dayKeyOf(nowMs)
       await completeTask(db, task.id, nowMs)
-      if (hasSessions || !task.estimateMin) return
+      if (hasSessions) {
+        const msg = completionFeedback(spentSec, task.estimateMin)
+        if (msg) toast({ text: msg, duration: 4500 })
+        return
+      }
+      if (!task.estimateMin) return
       const sec = task.estimateMin * 60
       toast({
         text: `Durée réelle : ${formatMin(task.estimateMin)} ?`,

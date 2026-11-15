@@ -2,6 +2,7 @@ import type { AppDB } from '../db'
 import { parseRoutineEntryId, routineEntryId } from './actions'
 import { addDays, daysBetween, diffDays, weekdayIndex } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
+import { type TimeStats, timeStats } from './insights'
 import { type DayItem, computeDayStats, regularity } from './stats'
 import type { DayKey, Entry, Pause, Routine, Session, Subtask, Task } from './types'
 
@@ -258,6 +259,8 @@ export interface RoutineDetail {
   avgRealMin?: number
   /** Suggestion d'ajustement de l'estimation (RG-68). */
   suggestedMin?: number
+  /** Durée habituelle, mini, maxi, régularité et tendance sur les 20 dernières fois chronométrées. */
+  stats?: TimeStats
 }
 
 export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayKey): Promise<RoutineDetail | null> {
@@ -294,6 +297,12 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
     if (sec > 0) timed.push(sec / 60)
   }
   const avgRealMin = timed.length ? timed.reduce((a, b) => a + b, 0) / timed.length : undefined
+  const last20 = doneEntries
+    .map((e) => (secByEntry.get(e.id) ?? 0) / 60)
+    .filter((m) => m > 0)
+    .slice(0, 20)
+    .reverse()
+  const stats = timeStats(last20)
   let suggestedMin: number | undefined
   if (
     avgRealMin !== undefined &&
@@ -310,6 +319,7 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
     month: regularity(entries, addDays(today, -29), today),
     grid,
     avgRealMin,
+    stats,
     suggestedMin,
   }
 }
