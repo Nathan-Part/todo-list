@@ -93,6 +93,11 @@ function toItem(e: Entry, raw: Raw): DayItem {
     hasSessions: own.length > 0,
     taskDeleted: task?.status === 'deleted',
     routineEnd: routine && !routine.archivedAt ? routine.endDate : undefined,
+    subtasks: (e.taskId ? (raw.subtasks.get(e.taskId) ?? []) : [])
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin })),
+    runningSubtaskId: running?.subtaskId,
     subtasksDone: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).filter((s) => s.status === 'done').length : 0,
     subtasksTotal: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).length : 0,
     segments: own
@@ -119,6 +124,7 @@ function virtualItem(r: Routine, date: DayKey): DayItem {
     hasSessions: false,
     taskDeleted: false,
     routineEnd: r.endDate,
+    subtasks: [],
     subtasksDone: 0,
     subtasksTotal: 0,
     segments: [],
