@@ -1,7 +1,19 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useState } from 'react'
+import { Swipeable } from '../components/Swipe'
 import { CategoryDot, Icon, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
-import { endPause } from '../domain/actions'
+import {
+  archiveRoutine,
+  deleteRoutine,
+  endPause,
+  restoreRoutine,
+  snapshotRoutine,
+  unarchiveRoutine,
+} from '../domain/actions'
+import { dayKeyOf } from '../domain/dates'
+import type { Routine } from '../domain/types'
+import { useToast } from '../lib/toast'
 import { type RoutineDetail, loadRoutineDetail } from '../domain/queries'
 import { frequencyLabel } from '../domain/routines'
 import type { GridState } from '../domain/queries'
@@ -23,16 +35,18 @@ export const GRID_STYLE: Record<GridState, string> = {
 export function RoutinesView() {
   const { today, setSheet } = useNav()
   const { byId } = useCategories()
+  const toast = useToast()
+  const [showArchived, setShowArchived] = useState(false)
   const data = useLiveQuery(async () => {
-    const routines = (await db.routines.toArray())
-      .filter((r) => !r.archivedAt)
-      .sort((a, b) => a.position - b.position)
+    const all = await db.routines.toArray()
+    const archived = all.filter((r) => r.archivedAt).sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0))
+    const routines = all.filter((r) => !r.archivedAt).sort((a, b) => a.position - b.position)
     // lectures lancées ensemble pour rester suivies en direct (voir domain/queries.ts)
     const [details, pauses] = await Promise.all([
       Promise.all(routines.map((r) => loadRoutineDetail(db, r.id, today))),
       db.pauses.toArray(),
     ])
-    return { details: details.filter((d): d is RoutineDetail => !!d), pauses }
+    return { details: details.filter((d): d is RoutineDetail => !!d), pauses, archived }
   }, [today])
 
   const activeAll = data?.pauses.find(
@@ -43,6 +57,16 @@ export function RoutinesView() {
       .filter((p) => p.routineId && p.fromDate <= today && (p.toDate === undefined || p.toDate >= today))
       .map((p) => p.routineId),
   )
+
+  const remove = async (r: Routine) => {
+    const snap = await snapshotRoutine(db, r.id)
+    await deleteRoutine(db, r.id)
+    if (snap) toast({ text: `« ${r.name} » supprimée`, actionLabel: 'Annuler', onAction: () => void restoreRoutine(db, snap) })
+  }
+  const archive = async (r: Routine) => {
+    await archiveRoutine(db, r.id, Date.now())
+    toast({ text: `« ${r.name} » archivée`, actionLabel: 'Annuler', onAction: () => void unarchiveRoutine(db, r.id, Date.now()) })
+  }
 
   return (
     <div>
@@ -88,8 +112,14 @@ export function RoutinesView() {
           const last7 = grid.filter((g) => g.day <= today).slice(-7)
           const pct = month.total > 0 ? Math.round((month.done / month.total) * 100) : undefined
           return (
-            <button
+            <Swipeable
               key={r.id}
+              actions={[
+                { label: 'Archiver', tone: 'warn', onClick: () => void archive(r) },
+                { label: 'Supprimer', tone: 'bad', onClick: () => void remove(r), full: true },
+              ]}
+            >
+            <button
               type="button"
               onClick={() => setSheet({ type: 'routine', routineId: r.id })}
               className="block w-full rounded-2xl border border-line/70 bg-surface p-3.5 text-left active:scale-[.99]"
@@ -121,6 +151,7 @@ export function RoutinesView() {
                 ))}
               </div>
             </button>
+            </Swipeable>
           )
         })}
         {data && data.details.length === 0 && (
@@ -129,6 +160,54 @@ export function RoutinesView() {
           </div>
         )}
       </div>
+
+      {data && data.archived.length > 0 && (
+        <section className="mt-6">
+          <button
+            type="button"
+            onClick={() => setShowArchived((v) => !v)}
+            className="mb-2 flex items-center gap-1 px-1 text-xs font-semibold uppercase tracking-wide text-muted"
+          >
+            Archivées · {data.archived.length}
+            <Icon name="down" className={`size-3.5 transition ${showArchived ? 'rotate-180' : ''}`} />
+          </button>
+          {showArchived && (
+            <div className="space-y-2">
+              {data.archived.map((r) => (
+                <Swipeable
+                  key={r.id}
+                  actions={[
+                    {
+                      label: 'Réactiver',
+                      tone: 'accent',
+                      onClick: async () => {
+                        await unarchiveRoutine(db, r.id, Date.now())
+                        toast({ text: `« ${r.name} » réactivée`, duration: 2500 })
+                      },
+                    },
+                    { label: 'Supprimer', tone: 'bad', onClick: () => void remove(r), full: true },
+                  ]}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSheet({ type: 'routine', routineId: r.id })}
+                    className="flex w-full items-center justify-between gap-3 rounded-2xl border border-line/70 bg-surface px-3.5 py-3 text-left"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-[15px] font-medium text-muted">{r.name}</span>
+                      <span className="text-xs text-muted">
+                        {frequencyLabel(r.frequency)} · archivée le {dayShort(dayKeyOf(r.archivedAt!))}
+                      </span>
+                    </span>
+                    <Icon name="right" className="size-4 shrink-0 text-muted" />
+                  </button>
+                </Swipeable>
+              ))}
+              <p className="px-1 text-xs text-muted">Glisse vers la gauche pour réactiver ou supprimer définitivement.</p>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   )
 }

@@ -791,21 +791,46 @@ export function updateRoutine(d: AppDB, id: string, changes: RoutineChanges, now
 export interface RoutineSnapshot {
   routine: Routine
   entries: Entry[]
+  sessions: Session[]
+  pauses: Pause[]
 }
 
-/** Copie de la routine et de ses occurrences à partir d'aujourd'hui, pour annuler une suppression. */
-export async function snapshotRoutine(d: AppDB, id: string, nowMs: number): Promise<RoutineSnapshot | null> {
+/** Copie complète d'une routine (occurrences, temps, pauses), pour annuler une suppression. */
+export async function snapshotRoutine(d: AppDB, id: string): Promise<RoutineSnapshot | null> {
   const routine = await d.routines.get(id)
   if (!routine) return null
-  const today = dayKeyOf(nowMs)
-  const entries = (await d.entries.where('routineId').equals(id).toArray()).filter((e) => e.date >= today)
-  return { routine, entries }
+  const entries = await d.entries.where('routineId').equals(id).toArray()
+  const sessions = entries.length ? await d.sessions.where('entryId').anyOf(entries.map((e) => e.id)).toArray() : []
+  const pauses = await d.pauses.where('routineId').equals(id).toArray()
+  return { routine, entries, sessions, pauses }
 }
 
 export function restoreRoutine(d: AppDB, snap: RoutineSnapshot): Promise<void> {
   return tx(d, async () => {
     await d.routines.put(snap.routine)
     await d.entries.bulkPut(snap.entries)
+    await d.sessions.bulkPut(snap.sessions.map((s) => ({ ...s, running: 0 as const })))
+    await d.pauses.bulkPut(snap.pauses)
+  })
+}
+
+/** Supprime définitivement une routine et tout son historique. */
+export function deleteRoutine(d: AppDB, id: string): Promise<void> {
+  return tx(d, async () => {
+    const entries = await d.entries.where('routineId').equals(id).toArray()
+    if (entries.length) await d.sessions.where('entryId').anyOf(entries.map((e) => e.id)).delete()
+    await d.entries.where('routineId').equals(id).delete()
+    await d.pauses.where('routineId').equals(id).delete()
+    await d.routines.delete(id)
+  })
+}
+
+/** Réactive une routine archivée : elle revient à partir d'aujourd'hui. */
+export function unarchiveRoutine(d: AppDB, id: string, nowMs: number): Promise<void> {
+  return tx(d, async () => {
+    const today = dayKeyOf(nowMs)
+    await d.routines.update(id, { archivedAt: undefined, endDate: undefined })
+    await generateOccurrences(d, today, today, today, nowMs)
   })
 }
 

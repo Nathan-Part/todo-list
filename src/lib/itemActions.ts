@@ -3,7 +3,7 @@ import { db } from '../db'
 import {
   addSession,
   completeEntry,
-  archiveRoutine,
+  deleteRoutine,
   completeTask,
   restoreRoutine,
   snapshotRoutine,
@@ -132,11 +132,9 @@ export function useItemActions() {
   const remove = useCallback(
     async (item: DayItem) => {
       if (item.kind === 'routine' && item.routineId) {
-        // supprimer une routine = l'archiver : plus d'occurrences, historique conservé
-        const snap = await snapshotRoutine(db, item.routineId, Date.now())
-        await archiveRoutine(db, item.routineId, Date.now())
-        if (snap)
-          toast({ text: 'Routine supprimée (historique conservé)', actionLabel: 'Annuler', onAction: () => void restoreRoutine(db, snap) })
+        const snap = await snapshotRoutine(db, item.routineId)
+        await deleteRoutine(db, item.routineId)
+        if (snap) toast({ text: 'Routine supprimée', actionLabel: 'Annuler', onAction: () => void restoreRoutine(db, snap) })
         return
       }
       if (!item.taskId) return

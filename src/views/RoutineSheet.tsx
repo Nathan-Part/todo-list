@@ -3,7 +3,15 @@ import { useEffect, useState } from 'react'
 import { CategoryChips, EstimateChips, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
-import { archiveRoutine, createRoutine, updateRoutine } from '../domain/actions'
+import {
+  archiveRoutine,
+  createRoutine,
+  deleteRoutine,
+  restoreRoutine,
+  snapshotRoutine,
+  unarchiveRoutine,
+  updateRoutine,
+} from '../domain/actions'
 import { loadRoutineDetail } from '../domain/queries'
 import type { Frequency, Routine } from '../domain/types'
 import { dayShort, formatMin } from '../lib/format'
@@ -235,34 +243,65 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           )}
 
           <div className="mt-8 flex flex-wrap gap-2">
-            <button type="button" className={btnGhost} onClick={() => setSheet({ type: 'pause', routineId })}>
-              <Icon name="pause" className="size-4" />
-              Mettre en pause
-            </button>
-            {confirmArchive ? (
+            {detail.routine.archivedAt ? (
+              <button
+                type="button"
+                className={btnSoft}
+                onClick={async () => {
+                  await unarchiveRoutine(db, routineId, Date.now())
+                  toast({ text: 'Routine réactivée', duration: 2500 })
+                  onClose()
+                }}
+              >
+                <Icon name="undo" className="size-4" />
+                Réactiver
+              </button>
+            ) : (
               <>
+                <button type="button" className={btnGhost} onClick={() => setSheet({ type: 'pause', routineId })}>
+                  <Icon name="pause" className="size-4" />
+                  Pause
+                </button>
                 <button
                   type="button"
-                  className={btnDanger}
+                  className={btnGhost}
                   onClick={async () => {
                     await archiveRoutine(db, routineId, Date.now())
-                    toast({ text: 'Routine archivée, historique conservé', duration: 3000 })
+                    toast({
+                      text: 'Routine archivée (visible dans « Archivées »)',
+                      actionLabel: 'Annuler',
+                      onAction: () => void unarchiveRoutine(db, routineId, Date.now()),
+                    })
                     onClose()
                   }}
                 >
-                  Confirmer l'archivage
-                </button>
-                <button type="button" className={btnGhost} onClick={() => setConfirmArchive(false)}>
-                  Annuler
+                  Archiver
                 </button>
               </>
+            )}
+            {confirmArchive ? (
+              <button
+                type="button"
+                className={btnDanger}
+                onClick={async () => {
+                  const snap = await snapshotRoutine(db, routineId)
+                  await deleteRoutine(db, routineId)
+                  if (snap) toast({ text: 'Routine supprimée', actionLabel: 'Annuler', onAction: () => void restoreRoutine(db, snap) })
+                  onClose()
+                }}
+              >
+                Confirmer la suppression
+              </button>
             ) : (
               <button type="button" className={btnDanger} onClick={() => setConfirmArchive(true)}>
                 <Icon name="trash" className="size-4" />
-                Archiver
+                Supprimer
               </button>
             )}
           </div>
+          {confirmArchive && (
+            <p className="mt-2 text-xs text-muted">Supprimer efface aussi tout son historique. Pour la garder sans qu'elle revienne, archive-la.</p>
+          )}
         </>
       )}
     </Sheet>
