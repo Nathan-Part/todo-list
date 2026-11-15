@@ -310,17 +310,14 @@ describe('tâches : report et réalisation', () => {
     expect(await db.entries.count()).toBe(0)
   })
 
-  it('suppression avec temps : le temps reste dans l\'historique du jour', async () => {
+  it('suppression avec temps : la tâche disparaît complètement', async () => {
     const id = await addTask(db, { name: 'Étudier', plan: MON }, at(MON))
     await startTimer(db, taskEntryId(id, MON), at(MON, 9))
     await pauseTimer(db, at(MON, 10))
     await deleteTask(db, id, at(MON, 11))
-
-    expect((await db.tasks.get(id))!.status).toBe('deleted')
-    const items = await loadDayItems(db, MON, MON)
-    expect(items).toHaveLength(1)
-    expect(items[0]).toMatchObject({ name: 'Étudier', status: 'deleted', taskDeleted: true, spentSec: 3600 })
-    expect((await loadReserve(db, MON)).length).toBe(0)
+    expect(await db.tasks.get(id)).toBeUndefined()
+    expect(await loadDayItems(db, MON, MON)).toHaveLength(0)
+    expect(await db.sessions.count()).toBe(0)
   })
 })
 
@@ -619,20 +616,6 @@ describe('annuler une suppression', () => {
     await restoreTask(db, snap)
     const [item] = await loadDayItems(db, MON, MON)
     expect(item).toMatchObject({ name: 'A', status: 'todo', spentSec: 600, subtasksTotal: 1 })
-  })
-})
-
-describe('récupérer une tâche supprimée', () => {
-  it('une tâche supprimée avec du temps revient à faire sur son jour', async () => {
-    const { undeleteTask } = await import('./actions')
-    const id = await addTask(db, { name: 'A', plan: MON }, at(MON))
-    await startTimer(db, taskEntryId(id, MON), at(MON, 9))
-    await pauseTimer(db, at(MON, 9, 20))
-    await deleteTask(db, id, at(MON, 10))
-    await undeleteTask(db, id, at(MON, 11))
-    expect((await db.tasks.get(id))!.status).toBe('todo')
-    const [item] = await loadDayItems(db, MON, MON)
-    expect(item).toMatchObject({ status: 'todo', spentSec: 1200 })
   })
 })
 

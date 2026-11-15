@@ -473,23 +473,16 @@ export function undeleteTask(d: AppDB, taskId: string, nowMs: number): Promise<v
   })
 }
 
-/** Supprime une tâche : le temps déjà enregistré reste dans l'historique (RG-90/91). */
+/** Supprime une tâche et tout ce qui la concerne (passages, temps, étapes). Annulable via snapshotTask/restoreTask. */
 export function deleteTask(d: AppDB, taskId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
+    const running = await d.sessions.where('running').equals(1).first()
     const entries = await d.entries.where('taskId').equals(taskId).toArray()
-    const task = await d.tasks.get(taskId)
-    let kept = 0
-    for (const e of entries) {
-      if (await hasSessions(d, e.id)) {
-        kept++
-        if (e.status === 'todo') await d.entries.update(e.id, { status: 'deleted', closedAt: nowMs, ...snap(task) })
-      } else {
-        await d.entries.delete(e.id)
-      }
-    }
+    if (running && entries.some((e) => e.id === running.entryId)) await closeSession(d, running, nowMs)
+    if (entries.length) await d.sessions.where('entryId').anyOf(entries.map((e) => e.id)).delete()
+    await d.entries.where('taskId').equals(taskId).delete()
     await d.subtasks.where('taskId').equals(taskId).delete()
-    if (kept === 0) await d.tasks.delete(taskId)
-    else await d.tasks.update(taskId, { status: 'deleted', deletedAt: nowMs, needsReview: false })
+    await d.tasks.delete(taskId)
   })
 }
 

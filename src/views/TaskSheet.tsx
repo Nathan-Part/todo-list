@@ -6,6 +6,8 @@ import { Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase
 import { db } from '../db'
 import {
   deleteTask,
+  restoreTask,
+  snapshotTask,
   markDoneOnDay,
   pauseTimer,
   planTask,
@@ -293,7 +295,9 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
                 type="button"
                 className={`${btnDanger} flex-1`}
                 onClick={async () => {
+                  const snap = await snapshotTask(db, task.id)
                   await deleteTask(db, task.id, Date.now())
+                  if (snap) toast({ text: 'Tâche supprimée', actionLabel: 'Annuler', onAction: () => void restoreTask(db, snap) })
                   onClose()
                 }}
               >
@@ -309,9 +313,6 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
               <Icon name="trash" className="size-4" />
               Supprimer
             </button>
-          )}
-          {sessions.length > 0 && confirmDelete && (
-            <p className="mt-2 text-xs text-muted">Le temps déjà enregistré reste dans l'historique des jours concernés.</p>
           )}
         </div>
       )}
