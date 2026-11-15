@@ -642,6 +642,17 @@ export function updateSubtask(d: AppDB, id: string, changes: { name?: string; es
   })
 }
 
+/** Ordre des étapes d'une tâche. */
+export function reorderSubtasks(d: AppDB, orderedIds: string[]): Promise<void> {
+  return tx(d, async () => {
+    let pos = 1000
+    for (const id of orderedIds) {
+      await d.subtasks.update(id, { position: pos })
+      pos += 1000
+    }
+  })
+}
+
 /** Le temps déjà passé sur une sous-tâche supprimée reste compté sur la tâche. */
 export function deleteSubtask(d: AppDB, id: string, nowMs: number): Promise<void> {
   return tx(d, async () => {

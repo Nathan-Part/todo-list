@@ -1,10 +1,21 @@
-import { useEffect, useState } from 'react'
+import {
+  DndContext,
+  type DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { type ReactNode, useEffect, useState } from 'react'
 import { db } from '../db'
 import {
   addSession,
   addSubtask,
   deleteSession,
   deleteSubtask,
+  reorderSubtasks,
   updateSubtask,
   pauseTimer,
   startTimer,
@@ -213,6 +224,41 @@ export function SessionsEditor({ entryId, sessions }: { entryId?: string; sessio
   )
 }
 
+/** Ligne d'étape déplaçable par sa poignée. */
+function SortableStep({ id, children, disabled }: { id: string; children: ReactNode; disabled?: boolean }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+    disabled,
+  })
+  return (
+    <li
+      ref={setNodeRef}
+      style={{
+        transform: transform ? `translate3d(0, ${Math.round(transform.y)}px, 0)` : undefined,
+        transition,
+        zIndex: isDragging ? 10 : undefined,
+        position: 'relative',
+      }}
+      className={`flex items-center gap-2 bg-surface py-2 pl-1 pr-3 ${isDragging ? 'rounded-xl shadow-lg ring-2 ring-accent' : ''}`}
+    >
+      {!disabled && (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          aria-label="Déplacer l'étape"
+          style={{ touchAction: 'none' }}
+          className="cursor-grab rounded p-1 text-muted active:cursor-grabbing"
+        >
+          <Icon name="grip" className="size-4" strokeWidth={3} />
+        </button>
+      )}
+      {children}
+    </li>
+  )
+}
+
 /** Étapes d'une tâche, chacune avec sa durée et son chrono (RG-50 à 54). */
 export function SubtasksEditor({
   taskId,
@@ -231,6 +277,23 @@ export function SubtasksEditor({
   const [name, setName] = useState('')
   const [minutes, setMinutes] = useState<number | undefined>()
   const [editing, setEditing] = useState<{ id: string; name: string; minutes?: number } | null>(null)
+  const [order, setOrder] = useState<string[] | null>(null)
+  useEffect(() => setOrder(null), [subtasks])
+  const list = order
+    ? order.map((id) => subtasks.find((x) => x.id === id)).filter((x): x is Subtask => !!x)
+    : subtasks
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 80, tolerance: 6 } }),
+  )
+  const onDragEnd = (e: DragEndEvent) => {
+    const { active, over } = e
+    if (!over || active.id === over.id) return
+    const ids = list.map((x) => x.id)
+    const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
+    setOrder(next)
+    void reorderSubtasks(db, next)
+  }
   const saveEdit = async () => {
     if (!editing || !editing.name.trim()) return
     await updateSubtask(db, editing.id, { name: editing.name.trim(), estimateMin: editing.minutes })
@@ -245,8 +308,10 @@ export function SubtasksEditor({
   return (
     <div>
       {subtasks.length > 0 && (
-        <ul className="mb-2 divide-y divide-line rounded-2xl border border-line">
-          {subtasks.map((st) => {
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={list.map((x) => x.id)} strategy={verticalListSortingStrategy}>
+        <ul className="mb-2 divide-y divide-line overflow-hidden rounded-2xl border border-line">
+          {list.map((st) => {
             const done = st.status === 'done'
             const running = runningSubtaskId === st.id
             if (editing?.id === st.id) {
@@ -273,7 +338,7 @@ export function SubtasksEditor({
               )
             }
             return (
-              <li key={st.id} className="flex items-center gap-2.5 px-3 py-2">
+              <SortableStep key={st.id} id={st.id} disabled={!!editing || list.length < 2}>
                 <button
                   type="button"
                   aria-label={done ? 'Décocher' : 'Cocher'}
@@ -319,12 +384,14 @@ export function SubtasksEditor({
                 >
                   <Icon name="x" className="size-4" />
                 </button>
-              </li>
+              </SortableStep>
             )
           })}
         </ul>
+        </SortableContext>
+        </DndContext>
       )}
-      {subtasks.length > 0 && <p className="mb-2 text-xs text-muted">Touche une étape pour changer son nom ou sa durée.</p>}
+      {subtasks.length > 0 && <p className="mb-2 text-xs text-muted">Touche une étape pour la modifier ; tiens ⋮⋮ et glisse pour changer l'ordre.</p>}
       <form
         className="space-y-2"
         onSubmit={(e) => {
