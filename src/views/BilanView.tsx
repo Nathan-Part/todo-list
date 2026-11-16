@@ -12,28 +12,57 @@ import { useNav } from '../lib/nav'
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
 
 function Search() {
-  const { setSheet } = useNav()
+  const { today, setSheet, setTab, setSelectedDay, setHighlight } = useNav()
   const [q, setQ] = useState('')
   const results = useLiveQuery(async () => {
     const needle = norm(q.trim())
     if (needle.length < 2) return []
     const tasks = (await db.tasks.toArray()).filter((t) => norm(`${t.name} ${t.note ?? ''}`).includes(needle))
     const routines = (await db.routines.toArray()).filter((r) => norm(`${r.name} ${r.note ?? ''}`).includes(needle))
+    const entries = await db.entries.toArray()
+    const goDay = (day: string, id: string) => {
+      setQ('')
+      setSelectedDay(day)
+      setTab('day')
+      setHighlight(id)
+    }
     return [
-      ...tasks.map((t) => ({
-        key: t.id,
-        name: t.name,
-        info: t.status === 'done' ? `faite le ${dayShort(t.doneDate ?? '')}` : t.status === 'deleted' ? 'supprimée' : 'à faire',
-        open: () => setSheet({ type: 'task', taskId: t.id }),
-      })),
-      ...routines.map((r) => ({
-        key: r.id,
-        name: r.name,
-        info: r.archivedAt ? 'routine archivée' : 'routine',
-        open: () => setSheet({ type: 'routine', routineId: r.id }),
-      })),
+      ...tasks.map((t) => {
+        const mine = entries.filter((e) => e.taskId === t.id).sort((a, b) => b.date.localeCompare(a.date))
+        const open = mine.find((e) => e.status === 'todo')
+        const day = open?.date ?? (t.status === 'done' ? t.doneDate : undefined)
+        return {
+          key: t.id,
+          name: t.name,
+          info:
+            t.status === 'done'
+              ? `faite le ${dayShort(t.doneDate ?? '')}`
+              : t.status === 'deleted'
+                ? 'supprimée'
+                : open
+                  ? dayLabel(open.date, today).toLowerCase()
+                  : 'en réserve',
+          open: () => {
+            if (day) goDay(day, t.id)
+            else if (t.status === 'todo') {
+              setQ('')
+              setTab('reserve')
+              setHighlight(t.id)
+            } else setSheet({ type: 'task', taskId: t.id })
+          },
+        }
+      }),
+      ...routines.map((r) => {
+        const todays = entries.some((e) => e.routineId === r.id && e.date === today)
+        return {
+          key: r.id,
+          name: r.name,
+          info: r.archivedAt ? 'routine archivée' : todays ? "routine · aujourd'hui" : 'routine',
+          open: () => (todays ? goDay(today, r.id) : setSheet({ type: 'routine', routineId: r.id })),
+        }
+      }),
     ].slice(0, 30)
-  }, [q])
+  }, [q, today])
 
   return (
     <div className="mt-4">

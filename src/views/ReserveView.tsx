@@ -24,7 +24,8 @@ import { useNav } from '../lib/nav'
 
 function ReserveRow({ r }: { r: ReserveItem }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: r.task.id })
-  const { today, setSheet } = useNav()
+  const { today, setSheet, highlight } = useNav()
+  const lit = highlight === r.task.id
   const { byId } = useCategories()
   const { completeTaskById } = useItemActions()
   const toast = useToast()
@@ -62,9 +63,12 @@ function ReserveRow({ r }: { r: ReserveItem }) {
         { label: 'Demain', tone: 'warn', onClick: () => void plan(addDays(today, 1), 'demain') },
         { label: 'Supprimer', tone: 'bad', onClick: () => void remove(), full: true },
       ]}
-      className="rounded-2xl border border-line/70 bg-surface"
+      className={`rounded-2xl border bg-surface ${lit ? 'border-accent ring-2 ring-accent' : 'border-line/70'}`}
     >
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div
+        ref={lit ? (el) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' }) : undefined}
+        className="flex items-center gap-3 px-3 py-2.5"
+      >
       <button
         type="button"
         aria-label="Terminer"

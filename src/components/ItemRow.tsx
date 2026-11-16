@@ -1,7 +1,10 @@
 import { type HTMLAttributes, type Ref, useState } from 'react'
 import { db } from '../db'
 import { pauseTimer, startTimer, toggleSubtask } from '../domain/actions'
+import { useNav } from '../lib/nav'
 import { type SwipeAction, Swipeable } from './Swipe'
+
+const scrollIntoViewRef = (el: HTMLElement | null) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 import { remainingLabel } from './pickers'
 import type { DayItem } from '../domain/stats'
 import { liveSpentSec } from '../domain/stats'
@@ -55,6 +58,8 @@ export function ItemRow({
   dragging,
   swipeActions,
 }: Props) {
+  const { highlight } = useNav()
+  const lit = !!highlight && (highlight === item.taskId || highlight === item.routineId)
   const isDone = item.status === 'done'
   const isOpen = item.status === 'todo'
   const cat = item.categoryId ? categories.get(item.categoryId) : undefined
@@ -124,9 +129,11 @@ export function ItemRow({
       actions={swipeActions}
       rootRef={rootRef}
       rootProps={rootProps}
-      className={`rounded-2xl border bg-surface ${dragging ? 'border-accent shadow-lg' : 'border-line/70'}`}
+      className={`rounded-2xl border bg-surface ${
+        dragging ? 'border-accent shadow-lg' : lit ? 'border-accent ring-2 ring-accent' : 'border-line/70'
+      }`}
     >
-      <div className="flex items-center gap-3 px-3 py-2.5">
+      <div ref={lit ? scrollIntoViewRef : undefined} className="flex items-center gap-3 px-3 py-2.5">
       {/* case à cocher */}
       {mode === 'today' && (isOpen || isDone) ? (
         <button

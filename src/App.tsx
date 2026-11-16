@@ -113,6 +113,12 @@ function Shell() {
   const [selectedDay, setSelectedDay] = useState(today)
   const [sheet, setSheet] = useState<SheetState>(null)
   const [focusEntryId, setFocus] = useState<string | null>(null)
+  const [highlight, setHighlight] = useState<string | null>(null)
+  useEffect(() => {
+    if (!highlight) return
+    const id = setTimeout(() => setHighlight(null), 3500)
+    return () => clearTimeout(id)
+  }, [highlight])
   const [okTimer, setOkTimer] = useState<string | null>(null)
   const runningItem = useRunning()
 
@@ -154,8 +160,8 @@ function Shell() {
   }, [])
 
   const nav = useMemo(
-    () => ({ today, tab, setTab, selectedDay, setSelectedDay, sheet, setSheet, focusEntryId, setFocus }),
-    [today, tab, selectedDay, sheet, focusEntryId],
+    () => ({ today, tab, setTab, selectedDay, setSelectedDay, sheet, setSheet, focusEntryId, setFocus, highlight, setHighlight }),
+    [today, tab, selectedDay, sheet, focusEntryId, highlight],
   )
 
   if (onboarded === undefined) return null

@@ -23,6 +23,9 @@ export interface Nav {
   setSelectedDay: (d: DayKey) => void
   sheet: SheetState
   setSheet: (s: SheetState) => void
+  /** Élément à mettre en évidence dans la liste (tâche ou routine trouvée par la recherche). */
+  highlight: string | null
+  setHighlight: (id: string | null) => void
   focusEntryId: string | null
   setFocus: (entryId: string | null) => void
 }
