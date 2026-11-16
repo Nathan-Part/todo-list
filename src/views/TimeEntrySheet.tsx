@@ -31,7 +31,7 @@ export function TimeEntrySheet({
   const range = rangeToMs(day, start, end)
 
   const save = async (r: { startAt: number; endAt: number } | null, durationSec?: number) => {
-    if (r) await addSession(db, entryId, { durationSec: (r.endAt - r.startAt) / 1000, ...r }, 'manual')
+    if (r) await addSession(db, entryId, { durationSec: (r.endAt - r.startAt) / 1000, ...r }, 'quick')
     else if (durationSec) await addSession(db, entryId, { durationSec }, 'quick')
     toast({ text: 'Temps enregistré', duration: 2000 })
     onClose()

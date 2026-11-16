@@ -257,6 +257,13 @@ export function reopenEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
     const today = dayKeyOf(nowMs)
     const e = await d.entries.get(entryId)
     if (!e || e.status !== 'done') return
+    // le temps indiqué en cochant (« de… à… ») est retiré : il sera redemandé à la prochaine validation.
+    // Le temps du chrono, lui, est du vrai travail : on le garde.
+    await d.sessions
+      .where('entryId')
+      .equals(e.id)
+      .filter((s) => s.source === 'quick')
+      .delete()
     if (e.kind === 'routine') {
       await d.entries.update(e.id, {
         status: e.date >= today ? 'todo' : 'not_done',

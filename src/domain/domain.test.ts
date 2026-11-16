@@ -680,3 +680,19 @@ describe('ordre manuel de la réserve', () => {
     expect((await loadReserve(db, MON)).map((r) => r.task.name)).toEqual(['C', 'A', 'B', 'D'])
   })
 })
+
+describe('rouvrir une tâche cochée par erreur', () => {
+  it('retire le temps indiqué en cochant, garde celui du chrono', async () => {
+    const { addSession } = await import('./actions')
+    const id = await addTask(db, { name: 'A', plan: MON }, at(MON))
+    const e = taskEntryId(id, MON)
+    await startTimer(db, e, at(MON, 9))
+    await pauseTimer(db, at(MON, 9, 10))
+    await completeEntry(db, e, at(MON, 12))
+    await addSession(db, e, { durationSec: 1800, startAt: at(MON, 11), endAt: at(MON, 11, 30) }, 'quick')
+    await reopenEntry(db, e, at(MON, 12, 5))
+    const [item] = await loadDayItems(db, MON, MON)
+    expect(item).toMatchObject({ status: 'todo', spentSec: 600 })
+    expect(item.segments).toHaveLength(1)
+  })
+})
