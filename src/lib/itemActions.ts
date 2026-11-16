@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 import { db } from '../db'
 import {
-  addSession,
   completeEntry,
   deleteRoutine,
   completeTask,
@@ -23,7 +22,7 @@ import { dayKeyOf } from '../domain/dates'
 import { completionFeedback } from '../domain/insights'
 import { type DayItem, liveSpentSec } from '../domain/stats'
 import type { Task } from '../domain/types'
-import { dayShort, formatMin } from './format'
+import { dayShort } from './format'
 import { useNav } from './nav'
 import { useToast } from './toast'
 
@@ -45,22 +44,15 @@ export function useItemActions() {
         if (msg) toast({ text: msg, duration: 4500 })
         return
       }
-      // Cochée sans chrono : proposition discrète de durée réelle (RG-65)
+      // Cochée sans chrono : on demande de quand à quand (RG-65)
       const entryId = item.kind === 'task' && item.date > today ? taskEntryId(item.taskId!, today) : item.id
-      if (item.estimateMin) {
-        const sec = item.estimateMin * 60
-        toast({
-          text: `Durée réelle : ${formatMin(item.estimateMin)} ?`,
-          actionLabel: 'OK',
-          onAction: () => void addSession(db, entryId, { durationSec: sec }, 'quick'),
-        })
-      } else if (item.kind === 'task') {
-        toast({
-          text: 'Terminée. Ajouter la durée réelle ?',
-          actionLabel: 'Ajouter',
-          onAction: () => setSheet({ type: 'task', taskId: item.taskId!, entryId }),
-        })
-      }
+      setSheet({
+        type: 'timeEntry',
+        entryId,
+        name: item.name,
+        estimateMin: item.estimateMin,
+        day: item.date > today ? today : item.date,
+      })
     },
     [toast, setSheet],
   )
@@ -76,15 +68,9 @@ export function useItemActions() {
         if (msg) toast({ text: msg, duration: 4500 })
         return
       }
-      if (!task.estimateMin) return
-      const sec = task.estimateMin * 60
-      toast({
-        text: `Durée réelle : ${formatMin(task.estimateMin)} ?`,
-        actionLabel: 'OK',
-        onAction: () => void addSession(db, taskEntryId(task.id, today), { durationSec: sec }, 'quick'),
-      })
+      setSheet({ type: 'timeEntry', entryId: taskEntryId(task.id, today), name: task.name, estimateMin: task.estimateMin, day: today })
     },
-    [toast],
+    [toast, setSheet],
   )
 
   const toggle = useCallback(

@@ -167,12 +167,55 @@ export function WeekdayToggles({ value, onChange }: { value: number[]; onChange:
   )
 }
 
+/** « 09:15 » + jour → instant ; une fin avant le début passe au lendemain. */
+export function rangeToMs(day: DayKey, start: string, end: string): { startAt: number; endAt: number } | null {
+  if (!start || !end) return null
+  const [y, m, d] = day.split('-').map(Number)
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  const startAt = new Date(y, m - 1, d, sh, sm).getTime()
+  let endAt = new Date(y, m - 1, d, eh, em).getTime()
+  if (endAt <= startAt) endAt += 86_400_000
+  return { startAt, endAt }
+}
+
+/** Saisie « de 14:00 à 14:45 ». */
+export function TimeRangeInput({
+  start,
+  end,
+  onChange,
+}: {
+  start: string
+  end: string
+  onChange: (start: string, end: string) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span>De</span>
+      <input type="time" value={start} onChange={(e) => onChange(e.target.value, end)} aria-label="Heure de début" className={`${inputBase} w-auto`} />
+      <span>à</span>
+      <input type="time" value={end} onChange={(e) => onChange(start, e.target.value)} aria-label="Heure de fin" className={`${inputBase} w-auto`} />
+    </div>
+  )
+}
+
 /** Sessions de temps d'un passage, avec ajout et suppression manuels (RG-66). */
-export function SessionsEditor({ entryId, sessions }: { entryId?: string; sessions: Session[] }) {
+export function SessionsEditor({ entryId, sessions, day }: { entryId?: string; sessions: Session[]; day?: DayKey }) {
   const [minutes, setMinutes] = useState<number | undefined>()
+  const [mode, setMode] = useState<'range' | 'duration'>('range')
+  const [start, setStart] = useState('')
+  const [end, setEnd] = useState('')
   const total = sessions.reduce((n, s) => n + s.durationSec, 0)
+  const range = day ? rangeToMs(day, start, end) : null
   const add = async () => {
-    if (!entryId || !minutes) return
+    if (!entryId) return
+    if (mode === 'range' && range) {
+      await addSession(db, entryId, { durationSec: (range.endAt - range.startAt) / 1000, ...range }, 'manual')
+      setStart('')
+      setEnd('')
+      return
+    }
+    if (!minutes) return
     await addSession(db, entryId, { durationSec: minutes * 60 }, 'manual')
     setMinutes(undefined)
   }
@@ -213,12 +256,33 @@ export function SessionsEditor({ entryId, sessions }: { entryId?: string; sessio
         </ul>
       )}
       {entryId && (
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <DurationInput value={minutes} onChange={setMinutes} onEnter={() => void add()} />
-          <button type="button" className={btnSoft} onClick={() => void add()} disabled={!minutes}>
-            <Icon name="plus" className="size-4" />
-            Ajouter
-          </button>
+        <div className="mt-3 space-y-2">
+          {day && (
+            <div className="flex gap-1.5">
+              <Chip active={mode === 'range'} onClick={() => setMode('range')}>
+                De… à…
+              </Chip>
+              <Chip active={mode === 'duration'} onClick={() => setMode('duration')}>
+                Durée
+              </Chip>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {mode === 'range' && day ? (
+              <TimeRangeInput start={start} end={end} onChange={(a, b) => (setStart(a), setEnd(b))} />
+            ) : (
+              <DurationInput value={minutes} onChange={setMinutes} onEnter={() => void add()} />
+            )}
+            <button
+              type="button"
+              className={btnSoft}
+              onClick={() => void add()}
+              disabled={mode === 'range' && day ? !range : !minutes}
+            >
+              <Icon name="plus" className="size-4" />
+              Ajouter{mode === 'range' && range ? ` (${formatSec((range.endAt - range.startAt) / 1000)})` : ''}
+            </button>
+          </div>
         </div>
       )}
     </div>

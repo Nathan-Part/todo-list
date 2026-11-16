@@ -278,7 +278,7 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
       )}
 
       <Field label="Temps réel">
-        <SessionsEditor entryId={ctx?.id} sessions={sessions} />
+        <SessionsEditor entryId={ctx?.id} sessions={sessions} day={ctx?.date} />
       </Field>
 
       {history.length > 0 && (

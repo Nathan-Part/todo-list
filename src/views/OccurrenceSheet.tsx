@@ -177,7 +177,7 @@ export function OccurrenceSheet({ entryId, onClose }: { entryId: string; onClose
 
       {!item.virtual && (
         <Field label="Temps réel">
-          <SessionsEditor entryId={item.id} sessions={sessions} />
+          <SessionsEditor entryId={item.id} sessions={sessions} day={item.date} />
         </Field>
       )}
 

@@ -21,6 +21,7 @@ import { RoutineSheet } from './views/RoutineSheet'
 import { RoutinesView } from './views/RoutinesView'
 import { SettingsSheet } from './views/SettingsSheet'
 import { TaskSheet } from './views/TaskSheet'
+import { TimeEntrySheet } from './views/TimeEntrySheet'
 import { Welcome } from './views/Welcome'
 
 /** Sur iPhone, les données d'une app installée sont séparées de celles de Safari : on impose l'installation. */
@@ -251,6 +252,16 @@ function Shell() {
       {sheet?.type === 'pause' && <PauseSheet routineId={sheet.routineId} onClose={close} />}
       {sheet?.type === 'review' && <ReviewSheet onClose={close} />}
       {sheet?.type === 'settings' && <SettingsSheet onClose={close} />}
+      {sheet?.type === 'timeEntry' && (
+        <TimeEntrySheet
+          key={sheet.entryId}
+          entryId={sheet.entryId}
+          name={sheet.name}
+          estimateMin={sheet.estimateMin}
+          day={sheet.day}
+          onClose={close}
+        />
+      )}
       {runningItem &&
         okTimer !== runningItem.session.id &&
         runningItem.session.startAt !== undefined &&
