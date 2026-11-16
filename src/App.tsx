@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { ForgottenTimer } from './components/ForgottenTimer'
 import { cleanupReopenedTimes } from './domain/actions'
+import { CatchUpSheet } from './views/CatchUpSheet'
 import { DayLineSheet } from './views/DayLineSheet'
 import { FocusScreen, MiniPlayer } from './components/Timer'
 import { Icon, type IconName, btnGhost, btnPrimary } from './components/ui'
@@ -266,6 +267,7 @@ function Shell() {
       {sheet?.type === 'dayLine' && (
         <DayLineSheet key={sheet.entryId + (sheet.sessionId ?? '')} entryId={sheet.entryId} sessionId={sheet.sessionId} onClose={close} />
       )}
+      {sheet?.type === 'catchUp' && <CatchUpSheet key={sheet.entryId} entryId={sheet.entryId} onClose={close} />}
       {sheet?.type === 'timeEntry' && (
         <TimeEntrySheet
           key={sheet.entryId}

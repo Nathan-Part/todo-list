@@ -36,10 +36,11 @@ import { useNav } from '../lib/nav'
 
 export const GRID_STYLE: Record<GridState, string> = {
   done: 'bg-good',
-  not_done: 'bg-bad/70',
+  late: 'bg-[#eab308]',
+  not_done: 'bg-bad',
   skipped: 'bg-muted/40',
   postponed: 'bg-warn/50',
-  todo: 'bg-accent/30 ring-2 ring-accent',
+  todo: 'bg-accent',
   pause: 'bg-line',
   none: 'bg-transparent border border-line/60',
   future: 'bg-transparent border border-dashed border-accent/60',
@@ -68,6 +69,18 @@ function SortableRoutine({ id, actions, children }: { id: string; actions: Swipe
       {children}
     </Swipeable>
   )
+}
+
+export const GRID_LABEL: Record<GridState, string> = {
+  done: 'faite',
+  late: 'faite en retard',
+  not_done: 'non faite',
+  skipped: 'sautée',
+  postponed: 'déplacée',
+  todo: 'à faire',
+  pause: 'en pause',
+  none: 'pas prévue',
+  future: 'à venir',
 }
 
 export function RoutinesView() {
@@ -171,7 +184,7 @@ export function RoutinesView() {
       <div className="mt-4 space-y-2" role="list">
         {details.map(({ routine: r, month, grid, stats }) => {
           const cat = r.categoryId ? byId.get(r.categoryId) : undefined
-          const last7 = grid.filter((g) => g.day <= today).slice(-7)
+          const last7 = grid.slice(-7)
           const pct = month.total > 0 ? Math.round((month.done / month.total) * 100) : undefined
           return (
             <SortableRoutine
@@ -182,10 +195,11 @@ export function RoutinesView() {
                 { label: 'Supprimer', tone: 'bad', onClick: () => void remove(r), full: true },
               ]}
             >
+            <div className="rounded-2xl border border-line/70 bg-surface p-3.5">
             <button
               type="button"
               onClick={() => setSheet({ type: 'routine', routineId: r.id })}
-              className="block w-full rounded-2xl border border-line/70 bg-surface p-3.5 text-left active:scale-[.99]"
+              className="block w-full text-left"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -225,17 +239,29 @@ export function RoutinesView() {
                   <div className="mt-0.5 text-[10px] text-muted">30 jours</div>
                 </div>
               </div>
-              <div className="mt-3 flex gap-1.5">
+            </button>
+              {/* semaine en cours, de droite à gauche : dimanche à droite, samedi à gauche */}
+              <div className="mt-3 flex flex-row-reverse gap-1.5">
                 {last7.map((g) => (
-                  <span key={g.day} className="flex flex-1 flex-col items-center gap-1">
-                    <span className={`h-2.5 w-full rounded-full ${GRID_STYLE[g.state]}`} />
+                  <button
+                    key={g.day}
+                    type="button"
+                    disabled={!g.entryId}
+                    aria-label={`${dayShort(g.day)} : ${GRID_LABEL[g.state]}`}
+                    onClick={() =>
+                      g.entryId &&
+                      setSheet(g.state === 'not_done' ? { type: 'catchUp', entryId: g.entryId } : { type: 'occurrence', entryId: g.entryId })
+                    }
+                    className="flex flex-1 flex-col items-center gap-1 py-1"
+                  >
+                    <span className={`h-3 w-full rounded-full ${GRID_STYLE[g.state]}`} />
                     <span className={`text-[10px] leading-none ${g.day === today ? 'font-bold text-accent' : 'text-muted'}`}>
-                      {g.day === today ? 'auj.' : weekdayLetter(g.day)}
+                      {weekdayLetter(g.day)}
                     </span>
-                  </span>
+                  </button>
                 ))}
               </div>
-            </button>
+            </div>
             </SortableRoutine>
           )
         })}

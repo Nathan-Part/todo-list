@@ -1,6 +1,6 @@
 import type { AppDB } from '../db'
 import { parseRoutineEntryId, routineEntryId } from './actions'
-import { addDays, daysBetween, diffDays, weekdayIndex } from './dates'
+import { addDays, dayKeyOf, daysBetween, diffDays, weekdayIndex } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
 import { type TimeStats, timeStats } from './insights'
 import { type DayItem, computeDayStats, regularity } from './stats'
@@ -248,14 +248,14 @@ export async function loadTaskDetail(d: AppDB, taskId: string): Promise<TaskDeta
   return { task, history, sessions, subtasks, openEntry: history.find((e) => e.status === 'todo') }
 }
 
-export type GridState = 'done' | 'not_done' | 'skipped' | 'postponed' | 'todo' | 'pause' | 'none' | 'future'
+export type GridState = 'done' | 'late' | 'not_done' | 'skipped' | 'postponed' | 'todo' | 'pause' | 'none' | 'future'
 
 export interface RoutineDetail {
   routine: Routine
   week: { done: number; total: number }
   month: { done: number; total: number }
-  /** 28 jours, alignés sur des semaines du lundi au dimanche. */
-  grid: { day: DayKey; state: GridState }[]
+  /** 28 jours, alignés sur des semaines du dimanche au samedi ; les 7 derniers = la semaine en cours. */
+  grid: { day: DayKey; state: GridState; entryId?: string }[]
   avgRealMin?: number
   /** Suggestion d'ajustement de l'estimation (RG-68). */
   suggestedMin?: number
@@ -276,15 +276,35 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
         .toArray()
     : []
 
-  const sunday = addDays(today, 6 - weekdayIndex(today)) // dimanche de la semaine courante
-  const days = daysBetween(addDays(sunday, -27), sunday)
+  // temps passé et première heure de début par occurrence faite
+  const secOf = new Map<string, number>()
+  const firstStart = new Map<string, number>()
+  for (const s of sessionList) {
+    secOf.set(s.entryId, (secOf.get(s.entryId) ?? 0) + s.durationSec)
+    if (s.startAt !== undefined) firstStart.set(s.entryId, Math.min(firstStart.get(s.entryId) ?? Infinity, s.startAt))
+  }
+  /** Faite « en retard » : plus longue que prévu (de plus de 10 %), ou commencée après l'heure fixée. */
+  const isLate = (e: Entry) => {
+    const est = e.estimateMinSnapshot ?? routine.estimateMin
+    if (est && (secOf.get(e.id) ?? 0) > est * 60 * 1.1) return true
+    const began = firstStart.get(e.id) ?? e.doneAt
+    if (routine.time && began !== undefined && dayKeyOf(began) === e.date) {
+      const d0 = new Date(began)
+      const hhmm = `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`
+      if (hhmm > routine.time) return true
+    }
+    return false
+  }
+
+  const saturday = addDays(today, 6 - ((weekdayIndex(today) + 1) % 7)) // samedi de la semaine en cours (dimanche → samedi)
+  const days = daysBetween(addDays(saturday, -27), saturday)
   const grid = days.map((day) => {
     const e = entries.find((x) => x.date === day && x.status !== 'postponed') ?? entries.find((x) => x.date === day)
     let state: GridState = 'none'
-    if (e) state = e.status === 'deleted' ? 'none' : (e.status as GridState)
+    if (e) state = e.status === 'deleted' ? 'none' : e.status === 'done' && isLate(e) ? 'late' : (e.status as GridState)
     else if (day > today) state = isRoutineScheduledOn(routine, day) && !isPaused(pauses, routine.id, day) ? 'future' : 'none'
     else if (isPaused(pauses, routine.id, day)) state = 'pause'
-    return { day, state }
+    return { day, state, entryId: e?.id }
   })
 
   // temps réel moyen sur les 10 dernières réalisations chronométrées

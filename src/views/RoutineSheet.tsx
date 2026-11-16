@@ -56,7 +56,7 @@ function toFrequency(f: Form): Frequency {
   return { type: 'interval', intervalDays: f.interval }
 }
 
-const DAY_HEADERS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+const DAY_HEADERS = ['D', 'L', 'M', 'M', 'J', 'V', 'S']
 
 export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'; onClose: () => void }) {
   const { today, setSheet } = useNav()
@@ -211,7 +211,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
                 <div className="text-xs text-muted">30 derniers jours</div>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-7 gap-1.5">
+            <div className="mt-4 grid grid-cols-7 gap-1.5" dir="rtl">
               {DAY_HEADERS.map((l, i) => (
                 <div key={i} className="text-center text-[10px] font-medium text-muted">
                   {l}
@@ -227,7 +227,8 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
             </div>
             <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
               <span className="inline-flex items-center gap-1"><i className="size-2.5 rounded bg-good" /> faite</span>
-              <span className="inline-flex items-center gap-1"><i className="size-2.5 rounded bg-bad/70" /> non faite</span>
+              <span className="inline-flex items-center gap-1"><i className="size-2.5 rounded bg-[#eab308]" /> faite en retard</span>
+              <span className="inline-flex items-center gap-1"><i className="size-2.5 rounded bg-bad" /> non faite</span>
               <span className="inline-flex items-center gap-1"><i className="size-2.5 rounded bg-muted/40" /> sautée</span>
               <span className="inline-flex items-center gap-1"><i className="size-2.5 rounded bg-line" /> pause</span>
             </div>

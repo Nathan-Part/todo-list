@@ -710,3 +710,27 @@ describe('rattrapage des tâches rouvertes avant la correction', () => {
     expect(await db.sessions.count()).toBe(1)
   })
 })
+
+describe('semaine d\'une routine : couleurs et rattrapage', () => {
+  it('dimanche → samedi ; verte, jaune si plus longue que prévu, rouge puis rattrapée', async () => {
+    const { addSession, markDoneOnDay } = await import('./actions')
+    const SUN = '2026-11-08'
+    const rid = await createRoutine(db, { name: 'Sport', estimateMin: 20, frequency: { type: 'daily' }, startDate: SUN }, at(SUN))
+    await runRollover(db, at(SUN))
+    await addSession(db, routineEntryId(rid, SUN, SUN), { durationSec: 20 * 60 }, 'quick')
+    await completeEntry(db, routineEntryId(rid, SUN, SUN), at(SUN, 20))
+    await runRollover(db, at(MON))
+    await addSession(db, routineEntryId(rid, MON, MON), { durationSec: 40 * 60 }, 'quick')
+    await completeEntry(db, routineEntryId(rid, MON, MON), at(MON, 20))
+    await runRollover(db, at(WED)) // mardi oublié
+    const week = async () => (await loadRoutineDetail(db, rid, WED))!.grid.slice(-7)
+    let w = await week()
+    expect(w.map((g) => g.day)[0]).toBe(SUN)
+    expect(w.map((g) => g.state)).toEqual(['done', 'late', 'not_done', 'todo', 'future', 'future', 'future'])
+    // rattrapage du mardi en 15 min : redevient vert
+    await markDoneOnDay(db, w[2].entryId!, at(WED, 10))
+    await addSession(db, w[2].entryId!, { durationSec: 15 * 60 }, 'quick')
+    w = await week()
+    expect(w[2].state).toBe('done')
+  })
+})
