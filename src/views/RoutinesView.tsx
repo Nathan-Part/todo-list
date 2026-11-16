@@ -30,7 +30,7 @@ import { useToast } from '../lib/toast'
 import { type RoutineDetail, loadRoutineDetail } from '../domain/queries'
 import { frequencyLabel } from '../domain/routines'
 import type { GridState } from '../domain/queries'
-import { dayShort, formatMin, plural } from '../lib/format'
+import { dayShort, formatMin, plural, weekdayLetter } from '../lib/format'
 import { useCategories } from '../lib/hooks'
 import { useNav } from '../lib/nav'
 
@@ -227,7 +227,12 @@ export function RoutinesView() {
               </div>
               <div className="mt-3 flex gap-1.5">
                 {last7.map((g) => (
-                  <span key={g.day} className={`h-2.5 flex-1 rounded-full ${GRID_STYLE[g.state]}`} title={g.day} />
+                  <span key={g.day} className="flex flex-1 flex-col items-center gap-1">
+                    <span className={`h-2.5 w-full rounded-full ${GRID_STYLE[g.state]}`} />
+                    <span className={`text-[10px] leading-none ${g.day === today ? 'font-bold text-accent' : 'text-muted'}`}>
+                      {g.day === today ? 'auj.' : weekdayLetter(g.day)}
+                    </span>
+                  </span>
                 ))}
               </div>
             </button>
