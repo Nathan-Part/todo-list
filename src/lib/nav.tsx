@@ -11,6 +11,7 @@ export type SheetState =
   | { type: 'pause'; routineId?: string }
   | { type: 'review' }
   | { type: 'settings' }
+  | { type: 'gap'; startAt: number; endAt: number }
   | { type: 'timeEntry'; entryId: string; name: string; estimateMin?: number; day: DayKey }
   | null
 

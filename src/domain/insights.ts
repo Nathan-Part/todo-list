@@ -115,3 +115,42 @@ export function spreadLabel(s: TimeStats): string {
 export function trendLabel(s: TimeStats): string | undefined {
   return s.trend === 'faster' ? 'de plus en plus rapide' : s.trend === 'slower' ? 'de plus en plus long' : undefined
 }
+
+export interface Gap {
+  start: number
+  end: number
+  minutes: number
+  /** Petite coupure entre deux tâches (20 min ou moins), ou vrai trou. */
+  kind: 'short' | 'long'
+  before?: string
+  after?: string
+}
+
+/**
+ * Temps non enregistré entre les sessions d'une journée.
+ * `until` (maintenant, pour aujourd'hui) ajoute le trou depuis la dernière session.
+ */
+export function computeGaps(
+  segments: { start: number; end: number; name: string }[],
+  until?: number,
+): Gap[] {
+  const sorted = [...segments].sort((a, b) => a.start - b.start)
+  const gaps: Gap[] = []
+  let curEnd = -Infinity
+  let curName: string | undefined
+  for (const s of sorted) {
+    if (curEnd !== -Infinity && s.start - curEnd >= 2 * 60_000) {
+      const minutes = Math.round((s.start - curEnd) / 60_000)
+      gaps.push({ start: curEnd, end: s.start, minutes, kind: minutes <= 20 ? 'short' : 'long', before: curName, after: s.name })
+    }
+    if (s.end > curEnd) {
+      curEnd = s.end
+      curName = s.name
+    }
+  }
+  if (until !== undefined && curEnd !== -Infinity && until - curEnd >= 15 * 60_000) {
+    const minutes = Math.round((until - curEnd) / 60_000)
+    gaps.push({ start: curEnd, end: until, minutes, kind: 'long', before: curName })
+  }
+  return gaps
+}

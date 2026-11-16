@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { CategoryDot, Icon, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addDays, startOfWeek } from '../domain/dates'
+import { computeGaps } from '../domain/insights'
 import { loadWeekReview } from '../domain/review'
 import { dayLabel, dayShort, formatSec, plural, timeOfDay, weekdayLetter } from '../lib/format'
 import { useCapacity, useCategories, useDayItems, useNow } from '../lib/hooks'
@@ -85,6 +86,13 @@ function DaySummary() {
       })),
     )
     .sort((a, b) => a.start - b.start)
+  const gaps = computeGaps(
+    timed.map((t) => ({ start: t.start, end: t.end, name: t.item.name })),
+    day === today && !timed.some((t) => t.running) ? now : undefined,
+  )
+  const shortGaps = gaps.filter((g) => g.kind === 'short')
+  const shortTotal = shortGaps.reduce((n, g) => n + g.minutes, 0)
+  const gapTotal = gaps.reduce((n, g) => n + g.minutes, 0)
   const timedIds = new Set(timed.map((t) => t.item.id))
   const untimed = items.filter((i) => i.status === 'done' && !timedIds.has(i.id))
   const done = items.filter((i) => i.status === 'done').length
@@ -155,6 +163,53 @@ function DaySummary() {
             </li>
           ))}
         </ol>
+      )}
+      {gaps.length > 0 && (
+        <div className="mt-4 border-t border-line pt-3">
+          <div className="flex items-baseline justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wide text-muted">Trous dans la journée</h4>
+            <span className="text-sm font-semibold tabular text-warn">{formatSec(gapTotal * 60)}</span>
+          </div>
+          <ul className="mt-2 space-y-1.5">
+            {gaps.map((g) => (
+              <li key={g.start}>
+                <button
+                  type="button"
+                  onClick={() => setSheet({ type: 'gap', startAt: g.start, endAt: g.end })}
+                  className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left ${
+                    g.kind === 'long' ? 'bg-warn-soft' : 'bg-bg'
+                  }`}
+                >
+                  <span className="min-w-0 flex-1 text-sm leading-snug">
+                    {g.kind === 'long' ? (
+                      <>
+                        De <span className="font-semibold tabular">{timeOfDay(g.start)}</span> à{' '}
+                        <span className="font-semibold tabular">{g.after ? timeOfDay(g.end) : 'maintenant'}</span> : rien d'enregistré.
+                        Tu faisais quoi ?
+                      </>
+                    ) : (
+                      <>
+                        <span className="tabular">{timeOfDay(g.start)}–{timeOfDay(g.end)}</span> · coupure entre «&nbsp;{g.before}&nbsp;» et
+                        «&nbsp;{g.after}&nbsp;»
+                      </>
+                    )}
+                  </span>
+                  <span className={`shrink-0 text-sm font-semibold tabular ${g.kind === 'long' ? 'text-warn' : 'text-muted'}`}>
+                    {formatSec(g.minutes * 60)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-muted">
+            {shortGaps.length > 1
+              ? `${shortGaps.length} petites coupures entre tes tâches : ${formatSec(shortTotal * 60)} perdues. `
+              : shortGaps.length === 1
+                ? `Une petite coupure : ${formatSec(shortTotal * 60)} perdues. `
+                : ''}
+            Touche un trou pour noter ce que tu faisais (pause, repas, trajet…).
+          </p>
+        </div>
       )}
       {untimed.some((i) => i.spentSec === 0) && (
         <p className="mt-2 text-xs text-muted">Touche une tâche « durée ? » pour indiquer de quand à quand tu l'as faite.</p>

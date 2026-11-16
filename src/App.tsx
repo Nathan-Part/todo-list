@@ -20,6 +20,7 @@ import { ReviewSheet } from './views/ReviewSheet'
 import { RoutineSheet } from './views/RoutineSheet'
 import { RoutinesView } from './views/RoutinesView'
 import { SettingsSheet } from './views/SettingsSheet'
+import { GapSheet } from './views/GapSheet'
 import { TaskSheet } from './views/TaskSheet'
 import { TimeEntrySheet } from './views/TimeEntrySheet'
 import { Welcome } from './views/Welcome'
@@ -252,6 +253,7 @@ function Shell() {
       {sheet?.type === 'pause' && <PauseSheet routineId={sheet.routineId} onClose={close} />}
       {sheet?.type === 'review' && <ReviewSheet onClose={close} />}
       {sheet?.type === 'settings' && <SettingsSheet onClose={close} />}
+      {sheet?.type === 'gap' && <GapSheet key={sheet.startAt} startAt={sheet.startAt} endAt={sheet.endAt} onClose={close} />}
       {sheet?.type === 'timeEntry' && (
         <TimeEntrySheet
           key={sheet.entryId}

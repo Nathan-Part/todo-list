@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
 import { AppDB } from '../db'
 import { addSession, addTask, completeTask, taskEntryId } from './actions'
-import { completionFeedback, suggestEstimate, timeStats } from './insights'
+import { completionFeedback, computeGaps, suggestEstimate, timeStats } from './insights'
 
 const at = (day: string, h = 9) => {
   const [y, m, d] = day.split('-').map(Number)
@@ -43,5 +43,26 @@ describe('estimation proposée pour une tâche semblable', () => {
     const s = (await suggestEstimate(db, 'faire les Courses'))!
     expect(s).toMatchObject({ count: 3, typical: 25 })
     expect(await suggestEstimate(db, 'Réviser les maths')).toBeUndefined()
+  })
+})
+
+describe('trous dans la journée', () => {
+  const t = (h: number, m = 0) => new Date(2026, 10, 16, h, m).getTime()
+  it('distingue petites coupures et vrais trous, ignore les chevauchements', () => {
+    const gaps = computeGaps([
+      { start: t(14, 29), end: t(14, 43), name: 'A' },
+      { start: t(14, 52), end: t(15, 3), name: 'B' },
+      { start: t(14, 55), end: t(15, 0), name: 'C' },
+      { start: t(16, 3), end: t(16, 30), name: 'D' },
+    ])
+    expect(gaps.map((g) => [g.kind, g.minutes, g.before, g.after])).toEqual([
+      ['short', 9, 'A', 'B'],
+      ['long', 60, 'B', 'D'],
+    ])
+  })
+  it('aujourd\'hui : trou depuis la dernière session', () => {
+    const gaps = computeGaps([{ start: t(9), end: t(10), name: 'A' }], t(11))
+    expect(gaps).toHaveLength(1)
+    expect(gaps[0]).toMatchObject({ minutes: 60, kind: 'long', before: 'A' })
   })
 })

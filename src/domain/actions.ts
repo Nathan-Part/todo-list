@@ -145,11 +145,12 @@ export async function updateTask(d: AppDB, taskId: string, changes: TaskChanges)
 /** Enregistre après coup une tâche non prévue déjà faite (RG-17). */
 export function addUnplanned(
   d: AppDB,
-  input: { name: string; durationMin: number; categoryId?: string },
+  input: { name: string; durationMin: number; categoryId?: string; startAt?: number; endAt?: number },
   nowMs: number,
 ): Promise<string> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    // avec des heures précises, l'imprévu est rangé sur le jour où il a eu lieu
+    const today = dayKeyOf(input.startAt ?? nowMs)
     const task: Task = {
       id: newId(),
       name: input.name.trim(),
@@ -180,6 +181,8 @@ export function addUnplanned(
         id: newId(),
         entryId,
         date: today,
+        startAt: input.startAt,
+        endAt: input.endAt,
         durationSec: Math.round(input.durationMin * 60),
         source: 'manual',
         running: 0,
