@@ -40,7 +40,7 @@ export const GRID_STYLE: Record<GridState, string> = {
   not_done: 'bg-bad',
   skipped: 'bg-muted/40',
   postponed: 'bg-warn/50',
-  todo: 'bg-accent',
+  todo: 'bg-accent/30 ring-2 ring-accent',
   pause: 'bg-line',
   none: 'bg-transparent border border-line/60',
   future: 'bg-transparent border border-dashed border-accent/60',
