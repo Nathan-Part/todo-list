@@ -37,7 +37,6 @@ export function useItemActions() {
       const today = dayKeyOf(nowMs)
       const realSec = liveSpentSec(item, nowMs)
       await completeEntry(db, item.id, nowMs)
-      if (item.unplanned) return
       if (item.hasSessions) {
         // retour immédiat : temps réel face à l'estimation
         const msg = completionFeedback(realSec, item.estimateMin)

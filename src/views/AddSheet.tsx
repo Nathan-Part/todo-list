@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { CategoryChips, EndDateField, EstimateChips, TimeField, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
-import { addTask, addUnplanned, createRoutine } from '../domain/actions'
+import { addTask, addUnplanned, createRoutine, taskEntryId } from '../domain/actions'
 import { suggestEstimate } from '../domain/insights'
 import { addDays } from '../domain/dates'
 import type { DayKey, Frequency } from '../domain/types'
@@ -16,7 +16,7 @@ type Plan = 'today' | 'tomorrow' | 'date' | 'reserve'
 type Repeat = 'never' | 'daily' | 'weekdays' | 'interval'
 
 export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'reserve'; onClose: () => void }) {
-  const { today, selectedDay } = useNav()
+  const { today, selectedDay, setSheet } = useNav()
   const { active: categories } = useCategories()
   const toast = useToast()
   const tomorrow = addDays(today, 1)
@@ -101,9 +101,9 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
     if (!name.trim() || busy) return
     setBusy(true)
     try {
-      await addUnplanned(db, { name, durationMin: estimate ?? 0, categoryId }, Date.now())
-      toast({ text: 'Imprévu enregistré', duration: 3000 })
-      onClose()
+      // l'imprévu est créé comme une tâche faite, puis on demande de quand à quand (comme pour toute tâche cochée)
+      const id = await addUnplanned(db, { name, durationMin: 0, categoryId }, Date.now())
+      setSheet({ type: 'timeEntry', entryId: taskEntryId(id, today), name: name.trim(), estimateMin: estimate, day: today })
     } finally {
       setBusy(false)
     }
