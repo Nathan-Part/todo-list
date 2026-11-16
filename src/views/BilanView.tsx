@@ -109,6 +109,7 @@ function DaySummary() {
     .flatMap((i) =>
       i.segments.map((sg) => ({
         item: i,
+        id: sg.id,
         start: sg.start,
         end: sg.end ?? now,
         running: sg.end === undefined,
@@ -126,9 +127,6 @@ function DaySummary() {
   const untimed = items.filter((i) => i.status === 'done' && !timedIds.has(i.id))
   const done = items.filter((i) => i.status === 'done').length
   const totalSec = items.reduce((n, i) => n + i.spentSec, 0) + timed.filter((t) => t.running).reduce((n, t) => n + (now - t.start) / 1000, 0)
-  const open = (i: (typeof items)[number]) =>
-    i.kind === 'task' && i.taskId ? setSheet({ type: 'task', taskId: i.taskId, entryId: i.id }) : setSheet({ type: 'occurrence', entryId: i.id })
-
   return (
     <section className="mt-4 rounded-2xl border border-line/70 bg-surface p-4">
       <div className="flex items-center justify-between">
@@ -161,7 +159,7 @@ function DaySummary() {
             const cat = t.item.categoryId ? byId.get(t.item.categoryId) : undefined
             return (
               <li key={idx}>
-                <button type="button" onClick={() => open(t.item)} className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg">
+                <button type="button" onClick={() => setSheet({ type: 'dayLine', entryId: t.item.id, sessionId: t.id })} className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg">
                   <span className="w-[5.5rem] shrink-0 pt-0.5 text-xs font-semibold tabular text-muted">
                     {timeOfDay(t.start)}–{t.running ? '…' : timeOfDay(t.end)}
                   </span>
@@ -181,7 +179,7 @@ function DaySummary() {
           )}
           {untimed.map((i) => (
             <li key={i.id}>
-              <button type="button" onClick={() => open(i)} className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg">
+              <button type="button" onClick={() => setSheet({ type: 'dayLine', entryId: i.id })} className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg">
                 <span className="w-[5.5rem] shrink-0 pt-0.5 text-xs text-muted">—</span>
                 <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: (i.categoryId && byId.get(i.categoryId)?.color) || 'var(--muted)' }} />
                 <span className="min-w-0 flex-1 break-words text-sm leading-snug">
@@ -240,8 +238,8 @@ function DaySummary() {
           </p>
         </div>
       )}
-      {untimed.some((i) => i.spentSec === 0) && (
-        <p className="mt-2 text-xs text-muted">Touche une tâche « durée ? » pour indiquer de quand à quand tu l'as faite.</p>
+      {(timed.length > 0 || untimed.length > 0) && (
+        <p className="mt-2 text-xs text-muted">Touche une ligne pour corriger les heures ou dire qu'elle n'a pas été faite.</p>
       )}
     </section>
   )

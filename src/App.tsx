@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { ForgottenTimer } from './components/ForgottenTimer'
+import { cleanupReopenedTimes } from './domain/actions'
+import { DayLineSheet } from './views/DayLineSheet'
 import { FocusScreen, MiniPlayer } from './components/Timer'
 import { Icon, type IconName, btnGhost, btnPrimary } from './components/ui'
 import { META, db, getMeta } from './db'
@@ -157,6 +159,7 @@ function Shell() {
   // demande un stockage durable (limite l'effacement par iOS)
   useEffect(() => {
     void navigator.storage?.persist?.()
+    void cleanupReopenedTimes(db)
   }, [])
 
   const nav = useMemo(
@@ -260,6 +263,9 @@ function Shell() {
       {sheet?.type === 'review' && <ReviewSheet onClose={close} />}
       {sheet?.type === 'settings' && <SettingsSheet onClose={close} />}
       {sheet?.type === 'gap' && <GapSheet key={sheet.startAt} startAt={sheet.startAt} endAt={sheet.endAt} onClose={close} />}
+      {sheet?.type === 'dayLine' && (
+        <DayLineSheet key={sheet.entryId + (sheet.sessionId ?? '')} entryId={sheet.entryId} sessionId={sheet.sessionId} onClose={close} />
+      )}
       {sheet?.type === 'timeEntry' && (
         <TimeEntrySheet
           key={sheet.entryId}

@@ -33,7 +33,7 @@ export interface DayItem {
   runningSubtaskId?: string
   subtasksTotal: number
   /** Intervalles chronométrés [début, fin] en ms (fin absente = en cours), pour la frise. */
-  segments: { start: number; end?: number }[]
+  segments: { id: string; start: number; end?: number }[]
 }
 
 export interface DayStats {

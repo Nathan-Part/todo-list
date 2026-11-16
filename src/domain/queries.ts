@@ -104,7 +104,7 @@ function toItem(e: Entry, raw: Raw): DayItem {
     subtasksTotal: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).length : 0,
     segments: own
       .filter((s) => s.startAt !== undefined)
-      .map((s) => ({ start: s.startAt!, end: s.running === 1 ? undefined : (s.endAt ?? s.startAt! + s.durationSec * 1000) })),
+      .map((s) => ({ id: s.id, start: s.startAt!, end: s.running === 1 ? undefined : (s.endAt ?? s.startAt! + s.durationSec * 1000) })),
   }
 }
 

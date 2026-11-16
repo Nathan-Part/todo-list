@@ -257,12 +257,12 @@ export function reopenEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
     const today = dayKeyOf(nowMs)
     const e = await d.entries.get(entryId)
     if (!e || e.status !== 'done') return
-    // le temps indiqué en cochant (« de… à… ») est retiré : il sera redemandé à la prochaine validation.
+    // le temps saisi à la main (« de… à… », durée) est retiré : il sera redemandé à la prochaine validation.
     // Le temps du chrono, lui, est du vrai travail : on le garde.
     await d.sessions
       .where('entryId')
       .equals(e.id)
-      .filter((s) => s.source === 'quick')
+      .filter((s) => s.source !== 'timer')
       .delete()
     if (e.kind === 'routine') {
       await d.entries.update(e.id, {
@@ -604,6 +604,21 @@ export function addSession(
       source,
       running: 0,
     })
+  })
+}
+
+/**
+ * Rattrapage unique : des tâches rouvertes avant la correction gardaient le temps saisi en les cochant.
+ * On retire ce temps (saisi à la main avec des heures) des tâches encore à faire.
+ */
+export function cleanupReopenedTimes(d: AppDB): Promise<void> {
+  return tx(d, async () => {
+    if (await d.meta.get('fixReopenedTimes')) return
+    const todo = new Set((await d.entries.where('status').equals('todo').toArray()).map((e) => e.id))
+    await d.sessions
+      .filter((s) => s.source !== 'timer' && s.running === 0 && s.startAt !== undefined && todo.has(s.entryId))
+      .delete()
+    await d.meta.put({ key: 'fixReopenedTimes', value: true })
   })
 }
 

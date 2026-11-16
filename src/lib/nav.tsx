@@ -12,6 +12,7 @@ export type SheetState =
   | { type: 'review' }
   | { type: 'settings' }
   | { type: 'gap'; startAt: number; endAt: number }
+  | { type: 'dayLine'; entryId: string; sessionId?: string }
   | { type: 'timeEntry'; entryId: string; name: string; estimateMin?: number; day: DayKey }
   | null
 
