@@ -4,6 +4,8 @@ import { AppDB } from '../db'
 import {
   addSubtask,
   addTask,
+  backfillStepTimes,
+  completeTask,
   createRoutine,
   pauseTimer,
   routineEntryId,
@@ -101,5 +103,24 @@ describe('routine facultative', () => {
     expect(detail.month.total).toBe(0)
     const other = (await loadRoutineDetail(db, normal, WED))!
     expect(other.grid.find((g) => g.day === MON)?.state).toBe('not_done')
+  })
+})
+
+describe('rattrapage des heures par étape', () => {
+  it('les étapes sans horaire d\'une tâche finie reprennent le créneau de l\'étape chronométrée, sans temps en double', async () => {
+    const id = await addTask(db, { name: 'Feature', plan: MON }, at(MON))
+    const a = await addSubtask(db, id, { name: 'A' })
+    await addSubtask(db, id, { name: 'B' })
+    await addSubtask(db, id, { name: 'C' })
+    const entryId = taskEntryId(id, MON)
+    await startTimer(db, entryId, at(MON, 10, 39), a)
+    await pauseTimer(db, at(MON, 10, 59))
+    await completeTask(db, id, at(MON, 11))
+    await backfillStepTimes(db)
+    await backfillStepTimes(db) // une seule fois
+    const item = (await loadItem(db, entryId))!
+    expect(item.segments).toHaveLength(3)
+    expect(new Set(item.segments.map((s) => `${s.start}-${s.end}`)).size).toBe(1)
+    expect(item.spentSec).toBe(20 * 60)
   })
 })

@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { ForgottenTimer } from './components/ForgottenTimer'
-import { cleanupReopenedTimes } from './domain/actions'
+import { backfillStepTimes, cleanupReopenedTimes } from './domain/actions'
 import { CatchUpSheet } from './views/CatchUpSheet'
 import { DayLineSheet } from './views/DayLineSheet'
 import { FocusScreen, MiniPlayer } from './components/Timer'
@@ -162,6 +162,7 @@ function Shell() {
   useEffect(() => {
     void navigator.storage?.persist?.()
     void cleanupReopenedTimes(db)
+    void backfillStepTimes(db)
   }, [])
 
   const nav = useMemo(

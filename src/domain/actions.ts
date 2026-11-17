@@ -642,6 +642,45 @@ export function cleanupReopenedTimes(d: AppDB): Promise<void> {
   })
 }
 
+/**
+ * Rattrapage unique : avant que l'app ne demande les heures de chaque étape, une tâche découpée pouvait
+ * être finie avec une seule étape horodatée. Les autres étapes faites reçoivent le même créneau
+ * (« faites en même temps »), sans durée pour ne pas compter le temps deux fois.
+ */
+export function backfillStepTimes(d: AppDB): Promise<void> {
+  return tx(d, async () => {
+    if (await d.meta.get('fixStepTimes')) return
+    const done = (await d.entries.where('status').equals('done').toArray()).filter((e) => e.taskId)
+    for (const e of done) {
+      const subs = (await d.subtasks.where('taskId').equals(e.taskId!).toArray()).filter((x) => x.status === 'done')
+      if (subs.length < 2) continue
+      const sessions = await d.sessions.where('entryId').equals(e.id).toArray()
+      const stepIds = new Set(subs.map((x) => x.id))
+      const timed = sessions
+        .filter((x) => x.subtaskId && stepIds.has(x.subtaskId) && x.startAt !== undefined && x.running === 0)
+        .sort((a, b) => (b.endAt ?? 0) - (a.endAt ?? 0))
+      if (timed.length === 0) continue
+      const ref = timed[0]
+      const has = new Set(sessions.map((x) => x.subtaskId))
+      for (const st of subs) {
+        if (has.has(st.id)) continue
+        await d.sessions.add({
+          id: newId(),
+          entryId: e.id,
+          subtaskId: st.id,
+          date: e.date,
+          startAt: ref.startAt,
+          endAt: ref.endAt ?? ref.startAt! + ref.durationSec * 1000,
+          durationSec: 0,
+          source: 'quick',
+          running: 0,
+        })
+      }
+    }
+    await d.meta.put({ key: 'fixStepTimes', value: true })
+  })
+}
+
 export async function updateSession(d: AppDB, id: string, changes: Partial<Pick<Session, 'durationSec' | 'startAt' | 'endAt'>>) {
   await d.sessions.update(id, changes)
 }

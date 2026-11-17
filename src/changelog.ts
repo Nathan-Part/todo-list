@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.7',
+    date: '2026-11-17',
+    title: 'Correction : anciennes tâches finies sans heures par étape',
+    changes: [
+      'Pour les tâches découpées terminées avant la version 1.4, les étapes restées sans horaire reprennent le créneau de l\'étape chronométrée : elles sont notées faites en même temps.',
+      'Le temps total n\'est pas compté deux fois.',
+    ],
+  },
+  {
     version: '1.6',
     date: '2026-11-17',
     title: 'Correction : toutes les étapes d\'une tâche finie dans le résumé',
