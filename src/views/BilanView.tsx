@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { CURRENT_VERSION } from '../changelog'
 import { CategoryDot, Icon, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addDays, startOfWeek } from '../domain/dates'
@@ -284,7 +285,7 @@ function DaySummary() {
 }
 
 export function BilanView() {
-  const { today } = useNav()
+  const { today, setSheet } = useNav()
   const [anchor, setAnchor] = useState(today)
   const capacity = useCapacity()
   const { byId } = useCategories()
@@ -468,6 +469,15 @@ export function BilanView() {
           )}
         </>
       )}
+      <footer className="mt-6 pb-2 text-center">
+        <button
+          type="button"
+          onClick={() => setSheet({ type: 'versions' })}
+          className="rounded-full px-3 py-1.5 text-xs text-muted underline-offset-2 active:bg-surface"
+        >
+          Ma journée · version <span className="font-semibold tabular">{CURRENT_VERSION}</span> · <span className="underline">nouveautés</span>
+        </button>
+      </footer>
     </div>
   )
 }
