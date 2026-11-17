@@ -128,10 +128,13 @@ function DaySummary() {
   const gapTotal = gaps.reduce((n, g) => n + g.minutes, 0)
   const timedIds = new Set(timed.map((t) => t.item.id))
   const untimed = items.filter((i) => i.status === 'done' && !timedIds.has(i.id))
-  // étapes finies ce jour-là alors que la tâche (ou la routine) ne l'est pas encore, et jamais chronométrées
+  // étapes finies ce jour-là sans horaire. Tâche pas encore finie : toutes ses étapes faites.
+  // Tâche finie : seulement si elle est suivie étape par étape (au moins une étape a ses heures),
+  // sinon sa propre ligne suffit.
   const timedSteps = new Set(timed.filter((t) => t.step).map((t) => `${t.item.id}|${t.step!.id}`))
+  const steppedItems = new Set(timed.filter((t) => t.step).map((t) => t.item.id))
   const untimedSteps = items
-    .filter((i) => i.status !== 'done')
+    .filter((i) => i.status === 'todo' || (i.status === 'done' && steppedItems.has(i.id)))
     .flatMap((i) =>
       i.subtasks
         .filter((st) => st.status === 'done' && (i.kind === 'routine' || st.doneDate === day) && !timedSteps.has(`${i.id}|${st.id}`))
@@ -494,7 +497,7 @@ function StepLabel({ item, step, running }: { item: DayItem; step: DayItem['subt
       <span className="mt-1 flex w-fit max-w-full items-start gap-1 rounded-lg bg-accent-soft px-2 py-0.5 text-[11px] font-medium leading-snug text-accent">
         <Icon name="list" className="mt-px size-3 shrink-0" />
         <span className="min-w-0 break-words">
-          Étape {item.subtasks.indexOf(step) + 1}/{item.subtasks.length} · {item.name}
+          Étape {item.subtasks.indexOf(step) + 1} sur {item.subtasks.length} · {item.name}
         </span>
       </span>
     </span>

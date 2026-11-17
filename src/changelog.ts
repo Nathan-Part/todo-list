@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.6',
+    date: '2026-11-17',
+    title: 'Correction : toutes les étapes d\'une tâche finie dans le résumé',
+    changes: [
+      'Quand une tâche découpée est terminée, le résumé du jour liste toutes ses étapes, y compris celles sans horaire (avec « heures ? » pour les ajouter).',
+      'Le badge indique « Étape 1 sur 3 » : c\'est la position de l\'étape, pas le nombre d\'étapes faites.',
+    ],
+  },
+  {
     version: '1.5',
     date: '2026-11-17',
     title: 'Historique des versions',
