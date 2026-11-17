@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
-import { pauseTimer, startTimer, toggleSubtask } from '../domain/actions'
+import { pauseTimer, startTimer, toggleItemStep } from '../domain/actions'
 import { loadItem } from '../domain/queries'
-import { liveSpentSec } from '../domain/stats'
+import { currentStep, liveSpentSec, liveStepSec } from '../domain/stats'
 import { formatClock, formatMin } from '../lib/format'
-import { useNow, useRunning, useRunningSession } from '../lib/hooks'
+import { useNow, useRunning } from '../lib/hooks'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
 import { Icon, btnGhost, btnPrimary } from './ui'
@@ -16,14 +16,18 @@ export function MiniPlayer() {
   const now = useNow(1000)
   if (!running) return null
   const { item } = running
-  const spent = liveSpentSec(item, now)
+  // sur une tâche ou une routine découpée, le chrono affiché est celui de l'étape en cours
+  const step = item.runningSubtaskId ? item.subtasks.find((x) => x.id === item.runningSubtaskId) : undefined
+  const spent = step ? liveStepSec(item, step.id, now) : liveSpentSec(item, now)
+  const est = step ? step.estimateMin : item.estimateMin
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-30 flex justify-center px-3">
       <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl bg-accent px-3 py-2 text-on-accent shadow-lg">
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setFocus(item.id)}>
-          <div className="truncate text-sm font-semibold">{item.name}</div>
-          <div className="text-xs opacity-80">
-            Chrono en cours{item.estimateMin ? ` · estimé ${formatMin(item.estimateMin)}` : ''}
+          <div className="truncate text-sm font-semibold">{step ? step.name : item.name}</div>
+          <div className="truncate text-xs opacity-80">
+            {step ? `Étape de « ${item.name} »` : 'Chrono en cours'}
+            {est ? ` · estimé ${formatMin(est)}` : ''}
           </div>
         </button>
         <span className="text-lg font-semibold tabular">{formatClock(spent)}</span>
@@ -50,19 +54,16 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
   }, [entryId])
   const now = useNow(1000)
   const { complete } = useItemActions()
-  const session = useRunningSession()
-  const subtasks = useLiveQuery(async () => {
-    const e = await db.entries.get(entryId)
-    if (!e?.taskId) return []
-    return (await db.subtasks.where('taskId').equals(e.taskId).toArray()).sort((a, b) => a.position - b.position)
-  }, [entryId]) ?? []
 
   if (!item) return null
-  const currentSub =
-    session?.entryId === entryId && session.subtaskId ? subtasks.find((x) => x.id === session.subtaskId) : undefined
+  const subtasks = item.subtasks
   const running = item.runningSince !== undefined
-  const spent = liveSpentSec(item, now)
-  const est = item.estimateMin ? item.estimateMin * 60 : undefined
+  // découpée : le grand chrono est celui de l'étape (en cours, ou la prochaine à faire), pas le total
+  const currentSub = currentStep(item)
+  const totalSpent = liveSpentSec(item, now)
+  const spent = currentSub ? liveStepSec(item, currentSub.id, now) : totalSpent
+  const estMin = currentSub ? currentSub.estimateMin : item.estimateMin
+  const est = estMin ? estMin * 60 : undefined
   const over = est !== undefined && spent > est
   const ratio = est ? Math.min(1, spent / est) : 0
 
@@ -79,15 +80,30 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto py-4 text-center">
-        <div className="max-w-xs text-xl font-semibold">{item.name}</div>
-        {item.kind === 'routine' && <div className="mt-1 text-sm text-muted">routine</div>}
+        {currentSub ? (
+          <>
+            <div className="max-w-xs text-sm text-muted">
+              {item.name}
+              {item.kind === 'routine' ? ' · routine' : ''}
+            </div>
+            <div className="mt-2 text-xs font-semibold uppercase tracking-wide text-accent">
+              {running ? 'Étape en cours' : 'Prochaine étape'} · {subtasks.indexOf(currentSub) + 1}/{subtasks.length}
+            </div>
+            <div className="mt-1 max-w-xs text-xl font-semibold">{currentSub.name}</div>
+          </>
+        ) : (
+          <>
+            <div className="max-w-xs text-xl font-semibold">{item.name}</div>
+            {item.kind === 'routine' && <div className="mt-1 text-sm text-muted">routine</div>}
+          </>
+        )}
         <div className="mt-8 text-7xl font-light tabular tracking-tight">{formatClock(spent)}</div>
         {est !== undefined ? (
           <>
             <div className={`mt-3 text-sm ${over ? 'font-semibold text-bad' : 'text-muted'}`}>
               {over
                 ? `Dépassement : + ${formatMin(Math.max(1, Math.round((spent - est) / 60)))}`
-                : `Estimé ${formatMin(item.estimateMin!)} · reste ${formatClock(est - spent)}`}
+                : `Estimé ${formatMin(estMin!)} · reste ${formatClock(est - spent)}`}
             </div>
             <div className="mt-4 h-2 w-64 overflow-hidden rounded-full bg-line">
               <div
@@ -97,46 +113,57 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
             </div>
           </>
         ) : (
-          <div className="mt-3 text-sm text-warn">Pas de durée estimée</div>
+          <div className="mt-3 text-sm text-warn">{currentSub ? "Pas de durée estimée pour cette étape" : 'Pas de durée estimée'}</div>
+        )}
+        {subtasks.length > 0 && (
+          <div className="mt-3 text-xs text-muted tabular">
+            Total {item.kind === 'routine' ? 'routine' : 'tâche'} : {formatClock(totalSpent)}
+            {item.estimateMin ? ` / ${formatMin(item.estimateMin)}` : ''}
+          </div>
         )}
         {subtasks.length > 0 && (
           <div className="mt-8 w-full max-w-xs text-left">
-            {currentSub && (
-              <div className="mb-2 text-center text-sm">
-                Étape en cours : <span className="font-semibold">{currentSub.name}</span>
-              </div>
-            )}
             <ul className="divide-y divide-line rounded-2xl border border-line bg-surface">
-              {subtasks.map((st) => (
-                <li key={st.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
-                  <button
-                    type="button"
-                    aria-label={st.status === 'done' ? 'Décocher' : 'Cocher'}
-                    onClick={async () => {
-                      const wasCurrent = currentSub?.id === st.id
-                      const finished = await toggleSubtask(db, st.id, Date.now())
-                      if (finished) onClose()
-                      else if (wasCurrent && st.status === 'todo') await startTimer(db, entryId, Date.now())
-                    }}
-                    className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 ${
-                      st.status === 'done' ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
-                    }`}
-                  >
-                    <Icon name="check" className="size-3" strokeWidth={3} />
-                  </button>
-                  <button
-                    type="button"
-                    disabled={st.status === 'done'}
-                    onClick={() => void startTimer(db, entryId, Date.now(), st.id)}
-                    className={`min-w-0 flex-1 break-words text-left leading-snug ${st.status === 'done' ? 'text-muted line-through' : ''} ${
-                      currentSub?.id === st.id ? 'font-semibold text-accent' : ''
-                    }`}
-                  >
-                    {st.name}
-                  </button>
-                  {st.estimateMin ? <span className="text-xs text-muted">{formatMin(st.estimateMin)}</span> : null}
-                </li>
-              ))}
+              {subtasks.map((st) => {
+                const stSpent = liveStepSec(item, st.id, now)
+                const stOver = !!st.estimateMin && stSpent > st.estimateMin * 60
+                const isCurrent = currentSub?.id === st.id
+                return (
+                  <li key={st.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                    <button
+                      type="button"
+                      aria-label={st.status === 'done' ? 'Décocher' : 'Cocher'}
+                      onClick={async () => {
+                        const wasRunning = running && item.runningSubtaskId === st.id
+                        const finished = await toggleItemStep(db, item, st.id, Date.now())
+                        if (finished) onClose()
+                        // étape en cours cochée : le chrono passe tout seul à la suivante
+                        else if (wasRunning && st.status === 'todo') await startTimer(db, entryId, Date.now())
+                      }}
+                      className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 ${
+                        st.status === 'done' ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
+                      }`}
+                    >
+                      <Icon name="check" className="size-3" strokeWidth={3} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={st.status === 'done' || item.status !== 'todo'}
+                      onClick={() => void startTimer(db, entryId, Date.now(), st.id)}
+                      className={`min-w-0 flex-1 break-words text-left leading-snug ${st.status === 'done' ? 'text-muted line-through' : ''} ${
+                        isCurrent ? 'font-semibold text-accent' : ''
+                      }`}
+                    >
+                      {st.name}
+                    </button>
+                    <span className={`text-xs tabular ${stOver ? 'font-semibold text-bad' : 'text-muted'}`}>
+                      {stSpent > 0 ? formatClock(stSpent) : ''}
+                      {stSpent > 0 && st.estimateMin ? ' / ' : ''}
+                      {st.estimateMin ? formatMin(st.estimateMin) : ''}
+                    </span>
+                  </li>
+                )
+              })}
             </ul>
           </div>
         )}

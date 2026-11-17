@@ -48,9 +48,20 @@ export interface Subtask {
   position: number
 }
 
+/** Étape d'une routine : modèle repris à chaque occurrence. */
+export interface RoutineStep {
+  id: string
+  name: string
+  estimateMin?: number
+}
+
 export interface Routine {
   id: string
   name: string
+  /** Facultative : une occurrence non faite reste neutre (ni rouge, ni comptée). */
+  optional?: boolean
+  /** Étapes, dans l'ordre ; la durée de la routine est alors la somme des leurs. */
+  steps?: RoutineStep[]
   categoryId?: string
   estimateMin?: number
   /** Heure prévue « HH:MM », facultative. */
@@ -94,11 +105,14 @@ export interface Entry {
   categoryIdSnapshot?: string
   closedAt?: number
   doneAt?: number
+  /** Routines : étapes cochées pour cette occurrence. */
+  stepsDone?: string[]
 }
 
 export interface Session {
   id: string
   entryId: string
+  /** Sous-tâche (tâche) ou étape (routine) chronométrée. */
   subtaskId?: string
   /** Jour auquel le temps est compté. */
   date: DayKey

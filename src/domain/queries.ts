@@ -74,6 +74,12 @@ function toItem(e: Entry, raw: Raw): DayItem {
   const snapped = e.status !== 'todo' && e.nameSnapshot !== undefined
   const own = raw.sessions.get(e.id) ?? []
   const running = own.find((s) => s.running === 1)
+  const stepSec = new Map<string, number>()
+  for (const s of own) if (s.subtaskId && s.running === 0) stepSec.set(s.subtaskId, (stepSec.get(s.subtaskId) ?? 0) + s.durationSec)
+  const subtasks = stepsOf(e, task ? raw.subtasks.get(task.id) : undefined, routine).map((st) => ({
+    ...st,
+    spentSec: stepSec.get(st.id) ?? 0,
+  }))
   return {
     id: e.id,
     virtual: false,
@@ -95,20 +101,37 @@ function toItem(e: Entry, raw: Raw): DayItem {
     hasSessions: own.length > 0,
     taskDeleted: task?.status === 'deleted',
     routineEnd: routine && !routine.archivedAt ? routine.endDate : undefined,
-    subtasks: (e.taskId ? (raw.subtasks.get(e.taskId) ?? []) : [])
-      .slice()
-      .sort((a, b) => a.position - b.position)
-      .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin })),
+    subtasks,
+    optional: !!routine?.optional,
     runningSubtaskId: running?.subtaskId,
-    subtasksDone: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).filter((s) => s.status === 'done').length : 0,
-    subtasksTotal: e.taskId ? (raw.subtasks.get(e.taskId) ?? []).length : 0,
+    subtasksDone: subtasks.filter((s) => s.status === 'done').length,
+    subtasksTotal: subtasks.length,
     segments: own
       .filter((s) => s.startAt !== undefined)
       .map((s) => ({ id: s.id, start: s.startAt!, end: s.running === 1 ? undefined : (s.endAt ?? s.startAt! + s.durationSec * 1000) })),
   }
 }
 
+/** Étapes d'un passage : sous-tâches de la tâche, ou étapes de la routine cochées sur cette occurrence. */
+function stepsOf(e: Pick<Entry, 'status' | 'stepsDone'>, subs: Subtask[] | undefined, routine: Routine | undefined) {
+  if (subs) {
+    return subs
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin }))
+  }
+  if (!routine?.steps?.length) return []
+  const done = new Set(e.stepsDone ?? [])
+  return routine.steps.map((st) => ({
+    id: st.id,
+    name: st.name,
+    estimateMin: st.estimateMin,
+    status: (e.status === 'done' || done.has(st.id) ? 'done' : 'todo') as 'todo' | 'done',
+  }))
+}
+
 function virtualItem(r: Routine, date: DayKey): DayItem {
+  const subtasks = stepsOf({ status: 'todo' }, undefined, r).map((st) => ({ ...st, spentSec: 0 }))
   return {
     id: routineEntryId(r.id, date, date),
     virtual: true,
@@ -127,9 +150,10 @@ function virtualItem(r: Routine, date: DayKey): DayItem {
     hasSessions: false,
     taskDeleted: false,
     routineEnd: r.endDate,
-    subtasks: [],
+    subtasks,
+    optional: !!r.optional,
     subtasksDone: 0,
-    subtasksTotal: 0,
+    subtasksTotal: subtasks.length,
     segments: [],
   }
 }
@@ -302,6 +326,8 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
     const e = entries.find((x) => x.date === day && x.status !== 'postponed') ?? entries.find((x) => x.date === day)
     let state: GridState = 'none'
     if (e) state = e.status === 'deleted' ? 'none' : e.status === 'done' && isLate(e) ? 'late' : (e.status as GridState)
+    // facultative : un jour sans elle reste vide, jamais rouge
+    if (routine.optional && day < today && (state === 'not_done' || state === 'skipped')) state = 'none'
     else if (day > today) state = isRoutineScheduledOn(routine, day) && !isPaused(pauses, routine.id, day) ? 'future' : 'none'
     else if (isPaused(pauses, routine.id, day)) state = 'pause'
     return { day, state, entryId: e?.id }
@@ -333,10 +359,12 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
     suggestedMin = Math.max(5, Math.round(avgRealMin / 5) * 5)
   }
 
+  // facultative : les jours manqués ne pèsent pas sur la régularité
+  const counted = routine.optional ? entries.filter((e) => e.status !== 'not_done') : entries
   return {
     routine,
-    week: regularity(entries, addDays(today, -6), today),
-    month: regularity(entries, addDays(today, -29), today),
+    week: regularity(counted, addDays(today, -6), today),
+    month: regularity(counted, addDays(today, -29), today),
     grid,
     avgRealMin,
     stats,

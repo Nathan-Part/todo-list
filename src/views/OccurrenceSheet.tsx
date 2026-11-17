@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { DayPicker } from '../components/DayPicker'
+import { SubtaskDropdown } from '../components/ItemRow'
 import { SessionsEditor } from '../components/pickers'
 import { Field, Icon, Sheet, btnGhost, btnPrimary, btnSoft } from '../components/ui'
 import { db } from '../db'
@@ -20,7 +21,7 @@ import { frequencyLabel, isPaused, isRoutineScheduledOn } from '../domain/routin
 import { dayShort, formatMin } from '../lib/format'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
-import { useRunningSession } from '../lib/hooks'
+import { useNow, useRunningSession } from '../lib/hooks'
 import { useToast } from '../lib/toast'
 
 /** Fiche d'une occurrence de routine sur un jour donné. */
@@ -37,6 +38,7 @@ export function OccurrenceSheet({ entryId, onClose }: { entryId: string; onClose
   const { complete } = useItemActions()
   const toast = useToast()
   const [pickDay, setPickDay] = useState(false)
+  const now = useNow(1000)
 
   if (!item || !routine) return <Sheet title="…" onClose={onClose}>{null}</Sheet>
 
@@ -60,13 +62,28 @@ export function OccurrenceSheet({ entryId, onClose }: { entryId: string; onClose
   return (
     <Sheet title={item.name} onClose={onClose}>
       <div className="text-sm text-muted">
-        Routine · {frequencyLabel(routine.frequency)}
+        Routine{routine.optional ? ' facultative' : ''} · {frequencyLabel(routine.frequency)}
         {routine.estimateMin ? ` · ${formatMin(routine.estimateMin)}` : ''}
       </div>
       <div className="mt-1 text-sm text-muted">
         {item.date === today ? "Aujourd'hui" : dayShort(item.date)}
         {item.scheduledDate && item.scheduledDate !== item.date ? ` (prévue le ${dayShort(item.scheduledDate)})` : ''}
       </div>
+
+      {item.subtasks.length > 0 && (
+        <div className="mt-4 overflow-hidden rounded-2xl border border-line">
+          <SubtaskDropdown
+            taskId={item.id}
+            item={item}
+            now={now}
+            subtasks={item.subtasks}
+            runningSubtaskId={item.runningSubtaskId}
+            timerEntryId={isTodo && !item.virtual && item.date === today ? item.id : undefined}
+            canCheck={isTodo && item.date <= today}
+            onOpen={() => {}}
+          />
+        </div>
+      )}
 
       {isTodo && !item.virtual && item.date <= today && (
         <div className="mt-4 flex gap-2">

@@ -30,11 +30,14 @@ It answers three questions every morning:
 **Recurring routines (habits)**
 - Every day, specific weekdays, or every N days (fixed calendar).
 - A missed occurrence is recorded as "not done" — routines never pile up.
+- Optional routines: a missed day stays empty (not red) and doesn't hurt the completion rate.
+- Routine steps, each with its own estimate, checked per occurrence and timed one by one.
 - Skip or move a single occurrence, pause one or all routines (holidays), completion rate over 7 and 30 days.
 - Suggests adjusting a routine's estimate when the real time keeps drifting from it.
 
 **Time tracking**
 - One running timer at a time, full-screen focus mode, mini player on every tab.
+- On a task or routine split into steps, the timer shows the current step's own time and estimate (with the total underneath).
 - Real time vs. estimate on every task, timeline of the day, "forgotten timer?" prompt after 3 hours.
 - Weekly review: completion rate, time per category, estimate accuracy, overloaded days, unplanned work.
 

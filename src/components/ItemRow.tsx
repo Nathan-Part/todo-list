@@ -1,13 +1,13 @@
 import { type HTMLAttributes, type Ref, useState } from 'react'
 import { db } from '../db'
-import { pauseTimer, startTimer, toggleSubtask } from '../domain/actions'
+import { pauseTimer, startTimer, toggleItemStep, toggleSubtask } from '../domain/actions'
 import { useNav } from '../lib/nav'
 import { type SwipeAction, Swipeable } from './Swipe'
 
 const scrollIntoViewRef = (el: HTMLElement | null) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 import { remainingLabel } from './pickers'
 import type { DayItem } from '../domain/stats'
-import { liveSpentSec } from '../domain/stats'
+import { liveSpentSec, liveStepSec } from '../domain/stats'
 import type { Category } from '../domain/types'
 import { dayShort, formatClock, formatMin, formatSec, timeOfDay } from '../lib/format'
 import { CategoryDot, Icon } from './ui'
@@ -37,7 +37,7 @@ function statusText(item: DayItem): string | null {
     case 'postponed':
       return item.movedTo === 'reserve' ? 'reportée en réserve' : `reportée au ${dayShort(item.movedTo ?? '')}`
     case 'skipped':
-      return 'sautée'
+      return item.optional ? 'facultative · pas faite' : 'sautée'
     case 'deleted':
       return 'supprimée'
     default:
@@ -65,6 +65,8 @@ export function ItemRow({
   const cat = item.categoryId ? categories.get(item.categoryId) : undefined
   const running = item.runningSince !== undefined
   const spent = liveSpentSec(item, now)
+  // chrono sur une étape : on affiche le temps de l'étape, pas le total
+  const runningStep = running && item.runningSubtaskId ? item.subtasks.find((x) => x.id === item.runningSubtaskId) : undefined
   const closedLook = !isOpen && !isDone
   const status = statusText(item)
 
@@ -108,6 +110,7 @@ export function ItemRow({
       )
     }
   }
+  if (item.kind === 'routine' && item.optional && isOpen) meta.push(<span key="opt" className="italic">facultative</span>)
   if (item.kind === 'routine' && item.routineEnd && isOpen && mode === 'today') {
     meta.push(
       <span key="end" className="font-medium text-accent">
@@ -192,7 +195,14 @@ export function ItemRow({
       {/* chrono */}
       {mode === 'today' && isOpen && (
         <div className="flex shrink-0 items-center gap-2">
-          {running && <span className="text-sm font-semibold tabular text-accent">{formatClock(spent)}</span>}
+          {running && (
+            <span className="flex flex-col items-end leading-tight">
+              <span className="text-sm font-semibold tabular text-accent">
+                {formatClock(runningStep ? liveStepSec(item, runningStep.id, now) : spent)}
+              </span>
+              {runningStep && <span className="max-w-24 truncate text-[10px] text-accent/80">{runningStep.name}</span>}
+            </span>
+          )}
           <button
             type="button"
             aria-label={running ? 'Mettre en pause' : 'Lancer le chrono'}
@@ -209,6 +219,8 @@ export function ItemRow({
       {item.subtasksTotal > 0 && (
         <SubtaskDropdown
           taskId={item.taskId ?? item.id}
+          item={item}
+          now={now}
           subtasks={item.subtasks}
           runningSubtaskId={item.runningSubtaskId}
           timerEntryId={mode === 'today' && isOpen ? item.id : undefined}
@@ -225,6 +237,8 @@ const openSubtasks = new Set<string>()
 
 export function SubtaskDropdown({
   taskId,
+  item,
+  now,
   subtasks,
   runningSubtaskId,
   timerEntryId,
@@ -232,6 +246,9 @@ export function SubtaskDropdown({
   onOpen,
 }: {
   taskId: string
+  /** Passage affiché : sert à cocher une étape de routine et à montrer le temps de chaque étape. */
+  item?: DayItem
+  now?: number
   subtasks: DayItem['subtasks']
   runningSubtaskId?: string
   /** Passage sur lequel lancer le chrono d'une étape ; absent = pas de chrono. */
@@ -276,7 +293,7 @@ export function SubtaskDropdown({
                   type="button"
                   aria-label={done ? `Décocher ${st.name}` : `Cocher ${st.name}`}
                   disabled={!canCheck && !done}
-                  onClick={() => void toggleSubtask(db, st.id, Date.now())}
+                  onClick={() => void (item ? toggleItemStep(db, item, st.id, Date.now()) : toggleSubtask(db, st.id, Date.now()))}
                   className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 ${
                     done ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
                   }`}
@@ -290,7 +307,7 @@ export function SubtaskDropdown({
                 >
                   {st.name}
                 </button>
-                {st.estimateMin ? <span className="text-xs text-muted tabular">{formatMin(st.estimateMin)}</span> : null}
+                <StepTime item={item} step={st} now={now} />
                 {timerEntryId && !done && (
                   <button
                     type="button"
@@ -307,5 +324,19 @@ export function SubtaskDropdown({
         </ul>
       )}
     </div>
+  )
+}
+
+/** Temps passé sur une étape face à son estimation (« 4:12 / 10 min »). */
+function StepTime({ item, step, now }: { item?: DayItem; step: DayItem['subtasks'][number]; now?: number }) {
+  const spent = item ? liveStepSec(item, step.id, now ?? Date.now()) : 0
+  if (!spent && !step.estimateMin) return null
+  const over = !!step.estimateMin && spent > step.estimateMin * 60
+  return (
+    <span className={`text-xs tabular ${over ? 'font-semibold text-bad' : 'text-muted'}`}>
+      {spent > 0 ? (item?.runningSubtaskId === step.id ? formatClock(spent) : formatSec(spent)) : ''}
+      {spent > 0 && step.estimateMin ? ' / ' : ''}
+      {step.estimateMin ? formatMin(step.estimateMin) : ''}
+    </span>
   )
 }

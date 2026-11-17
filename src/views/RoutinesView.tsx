@@ -215,6 +215,8 @@ export function RoutinesView() {
                   <div className="mt-0.5 text-xs text-muted">
                     {frequencyLabel(r.frequency)}
                     {r.estimateMin ? ` · ${formatMin(r.estimateMin)}` : ''}
+                    {r.steps?.length ? ` · ${plural(r.steps.length, 'étape', 'étapes')}` : ''}
+                    {r.optional ? ' · facultative' : ''}
                     {r.endDate && (
                       <span className="font-medium text-accent">
                         {' · '}jusqu'au {dayShort(r.endDate)} ({remainingLabel(r.endDate, today)})

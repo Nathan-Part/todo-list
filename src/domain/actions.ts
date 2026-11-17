@@ -1,7 +1,7 @@
 import { type AppDB, newId } from '../db'
 import { addDays, dayKeyOf } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
-import type { Category, DayKey, Entry, Frequency, Pause, Routine, Session, Task } from './types'
+import type { Category, DayKey, Entry, Frequency, Pause, Routine, RoutineStep, Session, Task } from './types'
 
 /* ------------------------------------------------------------------ */
 /* Identifiants déterministes : empêchent les doublons (RG-100/101)    */
@@ -206,7 +206,13 @@ export function completeEntry(d: AppDB, entryId: string, nowMs: number): Promise
 
     if (entry.kind === 'routine') {
       const r = await d.routines.get(entry.routineId!)
-      await d.entries.update(entry.id, { status: 'done', doneAt: nowMs, closedAt: nowMs, ...snap(r) })
+      await d.entries.update(entry.id, {
+        status: 'done',
+        doneAt: nowMs,
+        closedAt: nowMs,
+        ...snap(r),
+        ...(r?.steps?.length ? { stepsDone: r.steps.map((x) => x.id) } : {}),
+      })
       return
     }
 
@@ -265,8 +271,9 @@ export function reopenEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
       .filter((s) => s.source !== 'timer')
       .delete()
     if (e.kind === 'routine') {
+      const r = await d.routines.get(e.routineId!)
       await d.entries.update(e.id, {
-        status: e.date >= today ? 'todo' : 'not_done',
+        status: e.date >= today ? 'todo' : r?.optional ? 'skipped' : 'not_done',
         doneAt: undefined,
         closedAt: e.date >= today ? undefined : nowMs,
       })
@@ -297,7 +304,13 @@ export function markDoneOnDay(d: AppDB, entryId: string, nowMs: number): Promise
     if (!e || (e.status !== 'not_done' && e.status !== 'todo')) return
     if (e.kind === 'routine') {
       const r = await d.routines.get(e.routineId!)
-      await d.entries.update(e.id, { status: 'done', doneAt: nowMs, closedAt: nowMs, ...snap(r) })
+      await d.entries.update(e.id, {
+        status: 'done',
+        doneAt: nowMs,
+        closedAt: nowMs,
+        ...snap(r),
+        ...(r?.steps?.length ? { stepsDone: r.steps.map((x) => x.id) } : {}),
+      })
       return
     }
     const task = await d.tasks.get(e.taskId!)
@@ -550,6 +563,12 @@ export function startTimer(d: AppDB, entryId: string, nowMs: number, subtaskId?:
         .sort((a, b) => a.position - b.position)
       sub = subs[0]?.id
     }
+    if (!sub && e.routineId) {
+      // routine découpée : la première étape pas encore cochée
+      const r = await d.routines.get(e.routineId)
+      const done = new Set(e.stepsDone ?? [])
+      sub = r?.steps?.find((x) => !done.has(x.id))?.id
+    }
     const running = await d.sessions.where('running').equals(1).first()
     if (running) {
       if (running.entryId === entryId && running.subtaskId === sub) return
@@ -737,6 +756,50 @@ export function toggleSubtask(d: AppDB, id: string, nowMs: number): Promise<bool
   })
 }
 
+/**
+ * Coche ou décoche une étape d'une occurrence de routine. La dernière cochée termine l'occurrence.
+ * Retourne true si l'occurrence vient d'être terminée.
+ */
+export function toggleRoutineStep(d: AppDB, entryId: string, stepId: string, nowMs: number): Promise<boolean> {
+  return tx(d, async () => {
+    let e = await d.entries.get(entryId)
+    if (!e) {
+      const p = parseRoutineEntryId(entryId)
+      if (p) e = await ensureRoutineEntry(d, p.routineId, p.date)
+    }
+    if (!e || e.kind !== 'routine') return false
+    const r = await d.routines.get(e.routineId!)
+    const steps = r?.steps ?? []
+    const done = new Set((e.stepsDone ?? []).filter((id) => steps.some((x) => x.id === id)))
+    const running = await d.sessions.where('running').equals(1).first()
+    if (!done.has(stepId)) {
+      if (e.status !== 'todo') return false
+      if (running?.entryId === e.id && running.subtaskId === stepId) await closeSession(d, running, nowMs)
+      done.add(stepId)
+      await d.entries.update(e.id, { stepsDone: [...done] })
+      if (steps.length > 0 && steps.every((x) => done.has(x.id))) {
+        await completeEntry(d, e.id, nowMs)
+        return true
+      }
+      return false
+    }
+    done.delete(stepId)
+    await d.entries.update(e.id, { stepsDone: [...done] })
+    if (e.status === 'done') await reopenEntry(d, e.id, nowMs)
+    return false
+  })
+}
+
+/** Coche une étape d'un passage, qu'il s'agisse d'une sous-tâche de tâche ou d'une étape de routine. */
+export async function toggleItemStep(
+  d: AppDB,
+  item: { id: string; kind: 'task' | 'routine' },
+  stepId: string,
+  nowMs: number,
+): Promise<boolean> {
+  return item.kind === 'routine' ? toggleRoutineStep(d, item.id, stepId, nowMs) : toggleSubtask(d, stepId, nowMs)
+}
+
 /* ------------------------------------------------------------------ */
 /* Routines                                                            */
 /* ------------------------------------------------------------------ */
@@ -750,6 +813,22 @@ export interface RoutineInput {
   categoryId?: string
   note?: string
   time?: string
+  optional?: boolean
+  steps?: RoutineStep[]
+}
+
+/** Étapes nettoyées ; avec des durées, celle de la routine en est la somme (comme pour une tâche). */
+function normalizeSteps<T extends { steps?: RoutineStep[]; estimateMin?: number }>(input: T): T {
+  if (!('steps' in input)) return input
+  const steps = (input.steps ?? [])
+    .map((x) => ({ ...x, name: x.name.trim() }))
+    .filter((x) => x.name.length > 0)
+  const withEstimate = steps.filter((x) => x.estimateMin)
+  return {
+    ...input,
+    steps: steps.length ? steps : undefined,
+    ...(withEstimate.length ? { estimateMin: withEstimate.reduce((n, x) => n + (x.estimateMin ?? 0), 0) } : {}),
+  }
 }
 
 /**
@@ -778,7 +857,8 @@ export async function generateOccurrences(
         routineId: r.id,
         date: day,
         scheduledDate: day,
-        status: past ? 'not_done' : 'todo',
+        // facultative : un jour manqué reste neutre
+        status: past ? (r.optional ? 'skipped' : 'not_done') : 'todo',
         position: r.position,
         ...(past ? { closedAt: nowMs, ...snap(r) } : {}),
       })
@@ -786,7 +866,8 @@ export async function generateOccurrences(
   }
 }
 
-export function createRoutine(d: AppDB, input: RoutineInput, nowMs: number): Promise<string> {
+export function createRoutine(d: AppDB, raw: RoutineInput, nowMs: number): Promise<string> {
+  const input = normalizeSteps(raw)
   return tx(d, async () => {
     const today = dayKeyOf(nowMs)
     const all = await d.routines.toArray()
@@ -797,6 +878,8 @@ export function createRoutine(d: AppDB, input: RoutineInput, nowMs: number): Pro
       estimateMin: input.estimateMin,
       time: input.time || undefined,
       note: input.note?.trim() || undefined,
+      optional: input.optional || undefined,
+      steps: input.steps,
       frequency: input.frequency,
       startDate: input.startDate ?? today,
       endDate: input.endDate,
@@ -810,11 +893,12 @@ export function createRoutine(d: AppDB, input: RoutineInput, nowMs: number): Pro
 }
 
 export type RoutineChanges = Partial<
-  Pick<Routine, 'name' | 'categoryId' | 'estimateMin' | 'note' | 'frequency' | 'endDate' | 'time'>
+  Pick<Routine, 'name' | 'categoryId' | 'estimateMin' | 'note' | 'frequency' | 'endDate' | 'time' | 'optional' | 'steps'>
 >
 
 /** Une modification s'applique à partir d'aujourd'hui ; le passé ne change jamais (RG-38). */
-export function updateRoutine(d: AppDB, id: string, changes: RoutineChanges, nowMs: number): Promise<void> {
+export function updateRoutine(d: AppDB, id: string, raw: RoutineChanges, nowMs: number): Promise<void> {
+  const changes = normalizeSteps(raw)
   return tx(d, async () => {
     const today = dayKeyOf(nowMs)
     await d.routines.update(id, changes)

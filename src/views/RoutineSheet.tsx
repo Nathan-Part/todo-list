@@ -1,8 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
-import { CategoryChips, EndDateField, EstimateChips, TimeField, TimeInsight, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, DurationInput, EndDateField, EstimateChips, TimeField, TimeInsight, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
-import { db } from '../db'
+import { db, newId } from '../db'
 import {
   archiveRoutine,
   createRoutine,
@@ -13,7 +13,7 @@ import {
   updateRoutine,
 } from '../domain/actions'
 import { loadRoutineDetail } from '../domain/queries'
-import type { Frequency, Routine } from '../domain/types'
+import type { Frequency, Routine, RoutineStep } from '../domain/types'
 import { dayShort, formatMin } from '../lib/format'
 import { useCategories } from '../lib/hooks'
 import { useNav } from '../lib/nav'
@@ -32,9 +32,11 @@ interface Form {
   note: string
   endDate?: string
   time?: string
+  optional: boolean
+  steps: RoutineStep[]
 }
 
-const empty: Form = { name: '', kind: 'daily', weekdays: [0, 2, 4], interval: 2, note: '' }
+const empty: Form = { name: '', kind: 'daily', weekdays: [0, 2, 4], interval: 2, note: '', optional: false, steps: [] }
 
 function fromRoutine(r: Routine): Form {
   return {
@@ -47,6 +49,8 @@ function fromRoutine(r: Routine): Form {
     note: r.note ?? '',
     endDate: r.archivedAt ? undefined : r.endDate,
     time: r.time,
+    optional: !!r.optional,
+    steps: r.steps ?? [],
   }
 }
 
@@ -93,6 +97,8 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           note: form.note,
           endDate: form.endDate,
           time: form.time,
+          optional: form.optional,
+          steps: form.steps,
         },
         nowMs,
       )
@@ -108,6 +114,8 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           categoryId: form.categoryId,
           note: form.note.trim() || undefined,
           time: form.time,
+          optional: form.optional || undefined,
+          steps: form.steps,
           ...(detail?.routine.archivedAt ? {} : { endDate: form.endDate }),
         },
         nowMs,
@@ -176,8 +184,40 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
         <TimeField value={form.time} onChange={(time) => set({ time })} />
       </Field>
 
+      <Field label="Facultative">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={form.optional}
+          onClick={() => set({ optional: !form.optional })}
+          className="flex w-full items-center gap-3 text-left"
+        >
+          <span
+            className={`relative h-7 w-12 shrink-0 rounded-full transition ${form.optional ? 'bg-accent' : 'bg-line'}`}
+          >
+            <span
+              className={`absolute top-0.5 size-6 rounded-full bg-surface shadow transition-all ${form.optional ? 'left-[1.375rem]' : 'left-0.5'}`}
+            />
+          </span>
+          <span className="text-sm text-muted">
+            Si tu ne la fais pas, le jour reste vide (pas en rouge) et ta régularité n'est pas touchée.
+          </span>
+        </button>
+      </Field>
+
+      <Field label={form.steps.length ? `Étapes · ${form.steps.length}` : 'Étapes'}>
+        <RoutineStepsEditor steps={form.steps} onChange={(steps) => set({ steps })} />
+      </Field>
+
       <Field label="Durée estimée">
-        <EstimateChips value={form.estimate} onChange={(estimate) => set({ estimate })} />
+        {stepsTotal(form.steps) !== undefined ? (
+          <p className="text-sm">
+            <span className="font-semibold">{formatMin(stepsTotal(form.steps)!)}</span>
+            <span className="text-muted"> · somme des étapes</span>
+          </p>
+        ) : (
+          <EstimateChips value={form.estimate} onChange={(estimate) => set({ estimate })} />
+        )}
       </Field>
       <Field label="Catégorie">
         <CategoryChips value={form.categoryId} onChange={(categoryId) => set({ categoryId })} categories={categories} />
@@ -322,5 +362,129 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
         </>
       )}
     </Sheet>
+  )
+}
+
+/** Somme des durées des étapes, s'il y en a au moins une. */
+function stepsTotal(steps: RoutineStep[]): number | undefined {
+  const timed = steps.filter((x) => x.name.trim() && x.estimateMin)
+  return timed.length ? timed.reduce((n, x) => n + (x.estimateMin ?? 0), 0) : undefined
+}
+
+/** Étapes d'une routine, chacune avec sa durée ; enregistrées avec la routine. */
+function RoutineStepsEditor({ steps, onChange }: { steps: RoutineStep[]; onChange: (s: RoutineStep[]) => void }) {
+  const [name, setName] = useState('')
+  const [minutes, setMinutes] = useState<number | undefined>()
+  const [editing, setEditing] = useState<RoutineStep | null>(null)
+  const add = () => {
+    if (!name.trim()) return
+    onChange([...steps, { id: newId(), name: name.trim(), estimateMin: minutes }])
+    setName('')
+    setMinutes(undefined)
+  }
+  const move = (i: number, dir: -1 | 1) => {
+    const next = steps.slice()
+    const j = i + dir
+    if (j < 0 || j >= next.length) return
+    ;[next[i], next[j]] = [next[j], next[i]]
+    onChange(next)
+  }
+  return (
+    <div>
+      {steps.length > 0 && (
+        <ul className="mb-2 divide-y divide-line overflow-hidden rounded-2xl border border-line">
+          {steps.map((st, i) =>
+            editing?.id === st.id ? (
+              <li key={st.id} className="space-y-2 bg-bg px-3 py-3">
+                <input
+                  autoFocus
+                  value={editing.name}
+                  onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                  aria-label="Nom de l'étape"
+                  className={`${inputBase} w-full bg-surface`}
+                />
+                <DurationInput value={editing.estimateMin} onChange={(m) => setEditing({ ...editing, estimateMin: m })} />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={btnPrimary}
+                    disabled={!editing.name.trim()}
+                    onClick={() => {
+                      onChange(steps.map((x) => (x.id === editing.id ? { ...editing, name: editing.name.trim() } : x)))
+                      setEditing(null)
+                    }}
+                  >
+                    OK
+                  </button>
+                  <button type="button" className={btnGhost} onClick={() => setEditing(null)}>
+                    Annuler
+                  </button>
+                </div>
+              </li>
+            ) : (
+              <li key={st.id} className="flex items-center gap-2 px-3 py-2">
+                <span className="w-5 shrink-0 text-center text-xs font-semibold text-muted tabular">{i + 1}</span>
+                <button
+                  type="button"
+                  aria-label={`Modifier ${st.name}`}
+                  onClick={() => setEditing(st)}
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                >
+                  <span className="min-w-0 flex-1 break-words text-[15px] leading-snug">{st.name}</span>
+                  <span className="text-xs text-muted tabular">{st.estimateMin ? formatMin(st.estimateMin) : 'durée ?'}</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Monter ${st.name}`}
+                  disabled={i === 0}
+                  onClick={() => move(i, -1)}
+                  className="rounded-full p-1 text-muted disabled:opacity-30"
+                >
+                  <Icon name="down" className="size-4 rotate-180" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Descendre ${st.name}`}
+                  disabled={i === steps.length - 1}
+                  onClick={() => move(i, 1)}
+                  className="rounded-full p-1 text-muted disabled:opacity-30"
+                >
+                  <Icon name="down" className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  aria-label={`Supprimer ${st.name}`}
+                  onClick={() => onChange(steps.filter((x) => x.id !== st.id))}
+                  className="rounded-full p-1 text-muted"
+                >
+                  <Icon name="x" className="size-4" />
+                </button>
+              </li>
+            ),
+          )}
+        </ul>
+      )}
+      <div className="space-y-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              add()
+            }
+          }}
+          placeholder="Nouvelle étape"
+          className={`${inputBase} w-full`}
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <DurationInput value={minutes} onChange={setMinutes} onEnter={add} />
+          <button type="button" className={btnSoft} aria-label="Ajouter l'étape" disabled={!name.trim()} onClick={add}>
+            <Icon name="plus" className="size-4" />
+            Ajouter
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }

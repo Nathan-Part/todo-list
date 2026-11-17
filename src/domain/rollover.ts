@@ -12,9 +12,10 @@ export interface RolloverOptions {
 async function closeOverdue(d: AppDB, e: Entry, nowMs: number) {
   if (e.kind === 'routine') {
     // routine non faite : archivée « non faite », sans accumulation (RG-03)
+    // une routine facultative non faite reste neutre : « sautée », jamais rouge
     const r = await d.routines.get(e.routineId!)
     await d.entries.update(e.id, {
-      status: 'not_done',
+      status: r?.optional ? 'skipped' : 'not_done',
       closedAt: nowMs,
       nameSnapshot: r?.name,
       estimateMinSnapshot: r?.estimateMin,

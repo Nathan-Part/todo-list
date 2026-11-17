@@ -27,8 +27,10 @@ export interface DayItem {
   /** Date de fin de la routine, s'il y en a une. */
   routineEnd?: DayKey
   subtasksDone: number
-  /** Étapes de la tâche, dans l'ordre. */
-  subtasks: { id: string; name: string; status: 'todo' | 'done'; estimateMin?: number }[]
+  /** Étapes (sous-tâches d'une tâche ou étapes d'une routine), dans l'ordre, avec leur temps chronométré terminé. */
+  subtasks: { id: string; name: string; status: 'todo' | 'done'; estimateMin?: number; spentSec?: number }[]
+  /** Routine facultative. */
+  optional?: boolean
   /** Étape dont le chrono tourne. */
   runningSubtaskId?: string
   subtasksTotal: number
@@ -55,6 +57,19 @@ export function isPlanned(i: Pick<DayItem, 'unplanned' | 'status'>): boolean {
 
 export function liveSpentSec(i: DayItem, nowMs: number): number {
   return i.spentSec + (i.runningSince ? Math.max(0, (nowMs - i.runningSince) / 1000) : 0)
+}
+
+/** Temps passé sur une étape, chrono en cours compris. */
+export function liveStepSec(i: DayItem, stepId: string, nowMs: number): number {
+  const st = i.subtasks.find((x) => x.id === stepId)
+  const base = st?.spentSec ?? 0
+  return base + (i.runningSince && i.runningSubtaskId === stepId ? Math.max(0, (nowMs - i.runningSince) / 1000) : 0)
+}
+
+/** Étape sur laquelle porte le chrono : celle qui tourne, sinon la prochaine à faire. */
+export function currentStep(i: DayItem): DayItem['subtasks'][number] | undefined {
+  if (i.runningSince !== undefined) return i.runningSubtaskId ? i.subtasks.find((x) => x.id === i.runningSubtaskId) : undefined
+  return i.subtasks.find((x) => x.status === 'todo')
 }
 
 export function computeDayStats(items: DayItem[], nowMs: number): DayStats {
