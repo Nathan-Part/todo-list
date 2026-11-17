@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../db'
-import { pauseTimer, startTimer, toggleItemStep } from '../domain/actions'
+import { pauseTimer, startTimer } from '../domain/actions'
 import { loadItem } from '../domain/queries'
 import { currentStep, liveSpentSec, liveStepSec } from '../domain/stats'
 import { formatClock, formatMin } from '../lib/format'
@@ -53,7 +53,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
     if (e?.routineId) return (await db.routines.get(e.routineId))?.note
   }, [entryId])
   const now = useNow(1000)
-  const { complete } = useItemActions()
+  const { complete, toggleStep } = useItemActions()
 
   if (!item) return null
   const subtasks = item.subtasks
@@ -135,7 +135,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
                       aria-label={st.status === 'done' ? 'Décocher' : 'Cocher'}
                       onClick={async () => {
                         const wasRunning = running && item.runningSubtaskId === st.id
-                        const finished = await toggleItemStep(db, item, st.id, Date.now())
+                        const finished = await toggleStep({ entryId: item.id, kind: item.kind, parentName: item.name }, st)
                         if (finished) onClose()
                         // étape en cours cochée : le chrono passe tout seul à la suivante
                         else if (wasRunning && st.status === 'todo') await startTimer(db, entryId, Date.now())

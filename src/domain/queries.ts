@@ -108,7 +108,12 @@ function toItem(e: Entry, raw: Raw): DayItem {
     subtasksTotal: subtasks.length,
     segments: own
       .filter((s) => s.startAt !== undefined)
-      .map((s) => ({ id: s.id, start: s.startAt!, end: s.running === 1 ? undefined : (s.endAt ?? s.startAt! + s.durationSec * 1000) })),
+      .map((s) => ({
+        id: s.id,
+        start: s.startAt!,
+        end: s.running === 1 ? undefined : (s.endAt ?? s.startAt! + s.durationSec * 1000),
+        subtaskId: s.subtaskId,
+      })),
   }
 }
 
@@ -118,7 +123,7 @@ function stepsOf(e: Pick<Entry, 'status' | 'stepsDone'>, subs: Subtask[] | undef
     return subs
       .slice()
       .sort((a, b) => a.position - b.position)
-      .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin }))
+      .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin, doneDate: st.doneDate }))
   }
   if (!routine?.steps?.length) return []
   const done = new Set(e.stepsDone ?? [])

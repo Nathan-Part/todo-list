@@ -1,6 +1,7 @@
 import { type HTMLAttributes, type Ref, useState } from 'react'
 import { db } from '../db'
-import { pauseTimer, startTimer, toggleItemStep, toggleSubtask } from '../domain/actions'
+import { pauseTimer, startTimer } from '../domain/actions'
+import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
 import { type SwipeAction, Swipeable } from './Swipe'
 
@@ -257,6 +258,7 @@ export function SubtaskDropdown({
   onOpen: () => void
 }) {
   const key = taskId
+  const { toggleStep } = useItemActions()
   const [open, setOpen] = useState(() => openSubtasks.has(key))
   const toggle = () => {
     if (open) openSubtasks.delete(key)
@@ -293,7 +295,12 @@ export function SubtaskDropdown({
                   type="button"
                   aria-label={done ? `Décocher ${st.name}` : `Cocher ${st.name}`}
                   disabled={!canCheck && !done}
-                  onClick={() => void (item ? toggleItemStep(db, item, st.id, Date.now()) : toggleSubtask(db, st.id, Date.now()))}
+                  onClick={() =>
+                    void toggleStep(
+                      { entryId: item && !(item.virtual && item.kind === 'task') ? item.id : undefined, kind: item?.kind ?? 'task', parentName: item?.name ?? '' },
+                      st,
+                    )
+                  }
                   className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90 ${
                     done ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
                   }`}

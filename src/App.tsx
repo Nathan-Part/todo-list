@@ -265,7 +265,13 @@ function Shell() {
       {sheet?.type === 'settings' && <SettingsSheet onClose={close} />}
       {sheet?.type === 'gap' && <GapSheet key={sheet.startAt} startAt={sheet.startAt} endAt={sheet.endAt} onClose={close} />}
       {sheet?.type === 'dayLine' && (
-        <DayLineSheet key={sheet.entryId + (sheet.sessionId ?? '')} entryId={sheet.entryId} sessionId={sheet.sessionId} onClose={close} />
+        <DayLineSheet
+          key={sheet.entryId + (sheet.sessionId ?? '') + (sheet.subtaskId ?? '')}
+          entryId={sheet.entryId}
+          sessionId={sheet.sessionId}
+          subtaskId={sheet.subtaskId}
+          onClose={close}
+        />
       )}
       {sheet?.type === 'catchUp' && <CatchUpSheet key={sheet.entryId} entryId={sheet.entryId} onClose={close} />}
       {sheet?.type === 'timeEntry' && (
@@ -275,6 +281,8 @@ function Shell() {
           name={sheet.name}
           estimateMin={sheet.estimateMin}
           day={sheet.day}
+          subtaskId={sheet.subtaskId}
+          parentName={sheet.parentName}
           onClose={close}
         />
       )}

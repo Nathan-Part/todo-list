@@ -12,9 +12,19 @@ export type SheetState =
   | { type: 'review' }
   | { type: 'settings' }
   | { type: 'gap'; startAt: number; endAt: number }
-  | { type: 'dayLine'; entryId: string; sessionId?: string }
+  | { type: 'dayLine'; entryId: string; sessionId?: string; subtaskId?: string }
   | { type: 'catchUp'; entryId: string }
-  | { type: 'timeEntry'; entryId: string; name: string; estimateMin?: number; day: DayKey }
+  | {
+      type: 'timeEntry'
+      entryId: string
+      name: string
+      estimateMin?: number
+      day: DayKey
+      /** Étape cochée sans chrono : le temps saisi lui est rattaché. */
+      subtaskId?: string
+      /** Nom de la tâche ou routine dont l'étape fait partie. */
+      parentName?: string
+    }
   | null
 
 export interface Nav {

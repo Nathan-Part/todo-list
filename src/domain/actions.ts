@@ -607,7 +607,7 @@ export function stopTimerAt(d: AppDB, endMs: number): Promise<void> {
 export function addSession(
   d: AppDB,
   entryId: string,
-  input: { durationSec: number; startAt?: number; endAt?: number },
+  input: { durationSec: number; startAt?: number; endAt?: number; subtaskId?: string },
   source: 'manual' | 'quick',
 ): Promise<void> {
   return tx(d, async () => {
@@ -616,6 +616,7 @@ export function addSession(
     await d.sessions.add({
       id: newId(),
       entryId,
+      subtaskId: input.subtaskId,
       date: e.date,
       startAt: input.startAt,
       endAt: input.endAt,

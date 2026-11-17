@@ -3,14 +3,25 @@ import { useEffect, useState } from 'react'
 import { TimeRangeInput, rangeToMs } from '../components/pickers'
 import { Icon, Sheet, btnDanger, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
-import { addSession, deleteSession, deleteTask, reopenEntry, updateSession } from '../domain/actions'
+import { addSession, deleteSession, deleteTask, reopenEntry, toggleItemStep, updateSession } from '../domain/actions'
 import { loadItem } from '../domain/queries'
 import { formatSec, timeOfDay } from '../lib/format'
 import { useNav } from '../lib/nav'
 import { useToast } from '../lib/toast'
 
 /** Corriger une ligne du résumé de la journée : heures, temps, ou « pas faite finalement ». */
-export function DayLineSheet({ entryId, sessionId, onClose }: { entryId: string; sessionId?: string; onClose: () => void }) {
+export function DayLineSheet({
+  entryId,
+  sessionId,
+  subtaskId,
+  onClose,
+}: {
+  entryId: string
+  sessionId?: string
+  /** Ligne d'une étape (sous-tâche ou étape de routine). */
+  subtaskId?: string
+  onClose: () => void
+}) {
   const { setSheet } = useNav()
   const toast = useToast()
   const item = useLiveQuery(() => loadItem(db, entryId), [entryId])
@@ -28,6 +39,7 @@ export function DayLineSheet({ entryId, sessionId, onClose }: { entryId: string;
   }, [session, sessionId, init])
 
   if (!item) return <Sheet title="…" onClose={onClose}>{null}</Sheet>
+  const step = subtaskId ? item.subtasks.find((x) => x.id === subtaskId) : undefined
   const range = rangeToMs(item.date, start, end)
   const running = session?.running === 1
 
@@ -35,8 +47,20 @@ export function DayLineSheet({ entryId, sessionId, onClose }: { entryId: string;
     if (!range) return
     const durationSec = (range.endAt - range.startAt) / 1000
     if (session) await updateSession(db, session.id, { ...range, durationSec })
-    else await addSession(db, entryId, { ...range, durationSec }, 'quick')
+    else await addSession(db, entryId, { ...range, durationSec, subtaskId: step?.id }, 'quick')
     toast({ text: 'Heures enregistrées', duration: 2000 })
+    onClose()
+  }
+  const stepNotDone = async () => {
+    if (!step) return
+    // le temps saisi à la main pour cette étape part avec elle ; le chrono, lui, reste compté
+    await db.sessions
+      .where('entryId')
+      .equals(entryId)
+      .filter((s) => s.subtaskId === step.id && s.source !== 'timer')
+      .delete()
+    if (step.status === 'done') await toggleItemStep(db, item, step.id, Date.now())
+    toast({ text: 'Étape remise à faire', duration: 2500 })
     onClose()
   }
   const notDone = async () => {
@@ -47,7 +71,13 @@ export function DayLineSheet({ entryId, sessionId, onClose }: { entryId: string;
   }
 
   return (
-    <Sheet title={item.name} onClose={onClose}>
+    <Sheet title={step ? step.name : item.name} onClose={onClose}>
+      {step && (
+        <div className="mb-2 inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
+          <Icon name="list" className="size-3.5 shrink-0" />
+          <span className="truncate">Étape de « {item.name} »</span>
+        </div>
+      )}
       {running ? (
         <p className="mt-2 text-sm text-muted">Le chrono tourne sur cette tâche : arrête-le avant de corriger ses heures.</p>
       ) : (
@@ -76,7 +106,13 @@ export function DayLineSheet({ entryId, sessionId, onClose }: { entryId: string;
             Supprimer ce temps (la tâche reste faite)
           </button>
         )}
-        {item.status === 'done' && (
+        {step?.status === 'done' && (
+          <button type="button" className={`${btnDanger} w-full`} onClick={() => void stepNotDone()}>
+            <Icon name="undo" className="size-4" />
+            Finalement, étape pas faite
+          </button>
+        )}
+        {!step && item.status === 'done' && (
           <button type="button" className={`${btnDanger} w-full`} onClick={() => void notDone()}>
             <Icon name="undo" className="size-4" />
             {item.unplanned ? 'Retirer de ma journée' : 'Finalement, pas faite'}

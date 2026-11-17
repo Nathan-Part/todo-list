@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react'
 const PATHS: Record<string, string> = {
   check: 'M20 6 9 17l-5-5',
   plus: 'M12 5v14M5 12h14',
+  list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
   x: 'M18 6 6 18M6 6l12 12',
   play: 'M7 4.5v15l13-7.5z',
   pause: 'M8 5v14M16 5v14',

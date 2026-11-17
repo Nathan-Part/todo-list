@@ -17,6 +17,8 @@ import {
   unskipEntry,
   startTimer,
   taskEntryId,
+  toggleRoutineStep,
+  toggleSubtask,
 } from '../domain/actions'
 import { dayKeyOf } from '../domain/dates'
 import { completionFeedback } from '../domain/insights'
@@ -153,5 +155,46 @@ export function useItemActions() {
     [toast],
   )
 
-  return { complete, completeTaskById, toggle, timer, open, postpone, skip, remove, recover }
+  /**
+   * Coche ou décoche une étape (sous-tâche ou étape de routine).
+   * Cochée sans avoir été chronométrée : on demande de quelle heure à quelle heure, comme pour une tâche.
+   * Retourne true si la tâche ou l'occurrence vient d'être terminée.
+   */
+  const toggleStep = useCallback(
+    async (
+      target: { entryId?: string; kind: 'task' | 'routine'; parentName: string },
+      step: { id: string; name: string; estimateMin?: number; status: 'todo' | 'done' },
+    ) => {
+      const nowMs = Date.now()
+      const today = dayKeyOf(nowMs)
+      const checking = step.status === 'todo'
+      const finished =
+        target.kind === 'routine' && target.entryId
+          ? await toggleRoutineStep(db, target.entryId, step.id, nowMs)
+          : await toggleSubtask(db, step.id, nowMs)
+      if (!checking || !target.entryId) return finished
+      const entry = await db.entries.get(target.entryId)
+      if (!entry || entry.date > today) return finished
+      // une étape de routine revient chaque jour : on ne regarde que le temps de cette occurrence
+      const timed =
+        target.kind === 'routine'
+          ? await db.sessions.where('entryId').equals(entry.id).filter((s) => s.subtaskId === step.id).count()
+          : await db.sessions.filter((s) => s.subtaskId === step.id).count()
+      if (timed === 0) {
+        setSheet({
+          type: 'timeEntry',
+          entryId: entry.id,
+          name: step.name,
+          estimateMin: step.estimateMin,
+          day: entry.date,
+          subtaskId: step.id,
+          parentName: target.parentName,
+        })
+      }
+      return finished
+    },
+    [setSheet],
+  )
+
+  return { complete, completeTaskById, toggle, timer, open, postpone, skip, remove, recover, toggleStep }
 }

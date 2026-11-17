@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { TimeRangeInput, rangeToMs } from '../components/pickers'
-import { Sheet, btnGhost, btnPrimary, btnSoft } from '../components/ui'
+import { Icon, Sheet, btnGhost, btnPrimary, btnSoft } from '../components/ui'
 import { db } from '../db'
 import { addSession } from '../domain/actions'
 import type { DayKey } from '../domain/types'
@@ -16,12 +16,16 @@ export function TimeEntrySheet({
   name,
   estimateMin,
   day,
+  subtaskId,
+  parentName,
   onClose,
 }: {
   entryId: string
   name: string
   estimateMin?: number
   day: DayKey
+  subtaskId?: string
+  parentName?: string
   onClose: () => void
 }) {
   const toast = useToast()
@@ -31,15 +35,21 @@ export function TimeEntrySheet({
   const range = rangeToMs(day, start, end)
 
   const save = async (r: { startAt: number; endAt: number } | null, durationSec?: number) => {
-    if (r) await addSession(db, entryId, { durationSec: (r.endAt - r.startAt) / 1000, ...r }, 'quick')
-    else if (durationSec) await addSession(db, entryId, { durationSec }, 'quick')
+    if (r) await addSession(db, entryId, { durationSec: (r.endAt - r.startAt) / 1000, ...r, subtaskId }, 'quick')
+    else if (durationSec) await addSession(db, entryId, { durationSec, subtaskId }, 'quick')
     toast({ text: 'Temps enregistré', duration: 2000 })
     onClose()
   }
 
   return (
-    <Sheet title="Bravo, c'est fait !" onClose={onClose}>
-      <p className="mt-1 text-sm text-muted">
+    <Sheet title={subtaskId ? 'Étape terminée !' : "Bravo, c'est fait !"} onClose={onClose}>
+      {subtaskId && parentName && (
+        <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft px-2.5 py-1 text-xs font-medium text-accent">
+          <Icon name="list" className="size-3.5 shrink-0" />
+          <span className="truncate">Étape de « {parentName} »</span>
+        </div>
+      )}
+      <p className="mt-2 text-sm text-muted">
         Quand as-tu fait <span className="font-semibold text-ink">{name}</span> ? Ça sert à ta frise, au résumé du jour et à mieux
         estimer la prochaine fois.
       </p>

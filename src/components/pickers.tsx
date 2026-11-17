@@ -19,12 +19,12 @@ import {
   updateSubtask,
   pauseTimer,
   startTimer,
-  toggleSubtask,
 } from '../domain/actions'
 import { diffDays } from '../domain/dates'
 import { type TimeStats, deviationPct, spreadLabel, trendLabel } from '../domain/insights'
 import type { Category, DayKey, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
+import { useItemActions } from '../lib/itemActions'
 import { CategoryDot, Chip, Icon, btnGhost, btnPrimary, btnSoft, inputBase } from './ui'
 
 const PRESETS = [15, 30, 45, 60, 90, 120]
@@ -329,16 +329,22 @@ export function SubtasksEditor({
   taskId,
   subtasks,
   timerEntryId,
+  stepEntryId,
+  parentName = '',
   runningSubtaskId,
   onStart,
 }: {
   taskId: string
   subtasks: Subtask[]
+  /** Passage sur lequel ranger les heures d'une étape cochée sans chrono. */
+  stepEntryId?: string
+  parentName?: string
   /** Passage du jour sur lequel lancer le chrono ; absent = chrono indisponible. */
   timerEntryId?: string
   runningSubtaskId?: string
   onStart?: (entryId: string) => void
 }) {
+  const { toggleStep } = useItemActions()
   const [name, setName] = useState('')
   const [minutes, setMinutes] = useState<number | undefined>()
   const [editing, setEditing] = useState<{ id: string; name: string; minutes?: number } | null>(null)
@@ -407,7 +413,7 @@ export function SubtasksEditor({
                 <button
                   type="button"
                   aria-label={done ? 'Décocher' : 'Cocher'}
-                  onClick={() => void toggleSubtask(db, st.id, Date.now())}
+                  onClick={() => void toggleStep({ entryId: stepEntryId, kind: 'task', parentName }, st)}
                   className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 ${
                     done ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
                   }`}

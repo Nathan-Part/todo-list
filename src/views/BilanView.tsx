@@ -5,6 +5,7 @@ import { db } from '../db'
 import { addDays, startOfWeek } from '../domain/dates'
 import { computeGaps } from '../domain/insights'
 import { loadWeekReview } from '../domain/review'
+import type { DayItem } from '../domain/stats'
 import { dayLabel, dayShort, formatSec, plural, timeOfDay, weekdayLetter } from '../lib/format'
 import { useCapacity, useCategories, useDayItems, useNow } from '../lib/hooks'
 import { useNav } from '../lib/nav'
@@ -113,6 +114,7 @@ function DaySummary() {
         start: sg.start,
         end: sg.end ?? now,
         running: sg.end === undefined,
+        step: sg.subtaskId ? i.subtasks.find((x) => x.id === sg.subtaskId) : undefined,
       })),
     )
     .sort((a, b) => a.start - b.start)
@@ -125,6 +127,18 @@ function DaySummary() {
   const gapTotal = gaps.reduce((n, g) => n + g.minutes, 0)
   const timedIds = new Set(timed.map((t) => t.item.id))
   const untimed = items.filter((i) => i.status === 'done' && !timedIds.has(i.id))
+  // étapes finies ce jour-là alors que la tâche (ou la routine) ne l'est pas encore, et jamais chronométrées
+  const timedSteps = new Set(timed.filter((t) => t.step).map((t) => `${t.item.id}|${t.step!.id}`))
+  const untimedSteps = items
+    .filter((i) => i.status !== 'done')
+    .flatMap((i) =>
+      i.subtasks
+        .filter((st) => st.status === 'done' && (i.kind === 'routine' || st.doneDate === day) && !timedSteps.has(`${i.id}|${st.id}`))
+        .map((st) => ({ item: i, step: st })),
+    )
+  const stepsDone = items
+    .filter((i) => i.status !== 'done')
+    .reduce((n, i) => n + i.subtasks.filter((st) => st.status === 'done' && (i.kind === 'routine' || st.doneDate === day)).length, 0)
   const done = items.filter((i) => i.status === 'done').length
   const totalSec = items.reduce((n, i) => n + i.spentSec, 0) + timed.filter((t) => t.running).reduce((n, t) => n + (now - t.start) / 1000, 0)
   return (
@@ -148,10 +162,12 @@ function DaySummary() {
         </div>
       </div>
       <div className="mt-1 text-sm text-muted">
-        {plural(done, 'chose faite', 'choses faites')} · {formatSec(totalSec)} de travail enregistré
+        {done || !stepsDone ? plural(done, 'chose faite', 'choses faites') : ''}
+        {done && stepsDone ? ' + ' : ''}
+        {stepsDone > 0 ? plural(stepsDone, 'étape finie', 'étapes finies') : ''} · {formatSec(totalSec)} de travail enregistré
       </div>
 
-      {timed.length === 0 && untimed.length === 0 ? (
+      {timed.length === 0 && untimed.length === 0 && untimedSteps.length === 0 ? (
         <p className="mt-3 text-sm text-muted">Rien d'enregistré ce jour-là.</p>
       ) : (
         <ol className="mt-3 space-y-0.5">
@@ -159,24 +175,46 @@ function DaySummary() {
             const cat = t.item.categoryId ? byId.get(t.item.categoryId) : undefined
             return (
               <li key={idx}>
-                <button type="button" onClick={() => setSheet({ type: 'dayLine', entryId: t.item.id, sessionId: t.id })} className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg">
+                <button
+                  type="button"
+                  onClick={() => setSheet({ type: 'dayLine', entryId: t.item.id, sessionId: t.id, subtaskId: t.step?.id })}
+                  className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg"
+                >
                   <span className="w-[5.5rem] shrink-0 pt-0.5 text-xs font-semibold tabular text-muted">
                     {timeOfDay(t.start)}–{t.running ? '…' : timeOfDay(t.end)}
                   </span>
                   <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: cat?.color ?? 'var(--accent)' }} />
-                  <span className="min-w-0 flex-1 break-words text-sm leading-snug">
-                    {t.item.name}
-                    {t.item.status === 'done' && <Icon name="check" className="ml-1 inline size-3.5 text-good" strokeWidth={3} />}
-                    {t.running && <span className="ml-1 text-xs text-accent">en cours</span>}
-                  </span>
+                  {t.step ? (
+                    <StepLabel item={t.item} step={t.step} running={t.running} />
+                  ) : (
+                    <span className="min-w-0 flex-1 break-words text-sm leading-snug">
+                      {t.item.name}
+                      {t.item.status === 'done' && <Icon name="check" className="ml-1 inline size-3.5 text-good" strokeWidth={3} />}
+                      {t.running && <span className="ml-1 text-xs text-accent">en cours</span>}
+                    </span>
+                  )}
                   <span className="shrink-0 pt-0.5 text-xs tabular text-muted">{formatSec((t.end - t.start) / 1000)}</span>
                 </button>
               </li>
             )
           })}
-          {untimed.length > 0 && (
+          {(untimed.length > 0 || untimedSteps.length > 0) && (
             <li className="pt-2 text-xs font-semibold uppercase tracking-wide text-muted">Sans horaire</li>
           )}
+          {untimedSteps.map(({ item: i, step }) => (
+            <li key={`${i.id}|${step.id}`}>
+              <button
+                type="button"
+                onClick={() => setSheet({ type: 'dayLine', entryId: i.id, subtaskId: step.id })}
+                className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg"
+              >
+                <span className="w-[5.5rem] shrink-0 pt-0.5 text-xs text-muted">—</span>
+                <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: (i.categoryId && byId.get(i.categoryId)?.color) || 'var(--muted)' }} />
+                <StepLabel item={i} step={step} />
+                <span className="shrink-0 pt-0.5 text-xs text-accent">heures ?</span>
+              </button>
+            </li>
+          ))}
           {untimed.map((i) => (
             <li key={i.id}>
               <button type="button" onClick={() => setSheet({ type: 'dayLine', entryId: i.id })} className="flex w-full items-start gap-3 rounded-xl px-1 py-1.5 text-left active:bg-bg">
@@ -431,5 +469,24 @@ export function BilanView() {
         </>
       )}
     </div>
+  )
+}
+
+/** Ligne d'une étape dans le résumé : présentée comme une vraie tâche faite, avec la tâche dont elle fait partie. */
+function StepLabel({ item, step, running }: { item: DayItem; step: DayItem['subtasks'][number]; running?: boolean }) {
+  return (
+    <span className="min-w-0 flex-1">
+      <span className="block break-words text-sm leading-snug">
+        {step.name}
+        {step.status === 'done' && <Icon name="check" className="ml-1 inline size-3.5 text-good" strokeWidth={3} />}
+        {running && <span className="ml-1 text-xs text-accent">en cours</span>}
+      </span>
+      <span className="mt-1 flex w-fit max-w-full items-start gap-1 rounded-lg bg-accent-soft px-2 py-0.5 text-[11px] font-medium leading-snug text-accent">
+        <Icon name="list" className="mt-px size-3 shrink-0" />
+        <span className="min-w-0 break-words">
+          Étape {item.subtasks.indexOf(step) + 1}/{item.subtasks.length} · {item.name}
+        </span>
+      </span>
+    </span>
   )
 }

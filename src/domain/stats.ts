@@ -28,14 +28,14 @@ export interface DayItem {
   routineEnd?: DayKey
   subtasksDone: number
   /** Étapes (sous-tâches d'une tâche ou étapes d'une routine), dans l'ordre, avec leur temps chronométré terminé. */
-  subtasks: { id: string; name: string; status: 'todo' | 'done'; estimateMin?: number; spentSec?: number }[]
+  subtasks: { id: string; name: string; status: 'todo' | 'done'; estimateMin?: number; spentSec?: number; doneDate?: DayKey }[]
   /** Routine facultative. */
   optional?: boolean
   /** Étape dont le chrono tourne. */
   runningSubtaskId?: string
   subtasksTotal: number
   /** Intervalles chronométrés [début, fin] en ms (fin absente = en cours), pour la frise. */
-  segments: { id: string; start: number; end?: number }[]
+  segments: { id: string; start: number; end?: number; subtaskId?: string }[]
 }
 
 export interface DayStats {

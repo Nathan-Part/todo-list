@@ -189,6 +189,8 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
               taskId={task.id}
               subtasks={detail.subtasks}
               timerEntryId={isTodo && openEntry && openEntry.date <= today ? openEntry.id : undefined}
+              stepEntryId={openEntry && openEntry.date <= today ? openEntry.id : undefined}
+              parentName={task.name}
               runningSubtaskId={timerOn ? running?.subtaskId : undefined}
               onStart={(id) => {
                 onClose()
