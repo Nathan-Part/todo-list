@@ -204,6 +204,16 @@ function DaySummary() {
         {done && stepsDone ? ' + ' : ''}
         {stepsDone > 0 ? plural(stepsDone, 'étape finie', 'étapes finies') : ''} · {formatSec(totalSec)} de travail enregistré
       </div>
+      <button
+        type="button"
+        onClick={() => setSheet({ type: 'hourly', day })}
+        className="mt-3 flex w-full items-center gap-3 rounded-xl bg-accent-soft px-3 py-2.5 text-left text-accent active:scale-[.99]"
+      >
+        <Icon name="clock" className="size-5 shrink-0" />
+        <span className="flex-1 text-sm font-semibold">Activité horaire</span>
+        <span className="text-xs">heure par heure</span>
+        <Icon name="right" className="size-4" />
+      </button>
 
       {timed.length === 0 && untimed.length === 0 && untimedSteps.length === 0 ? (
         <p className="mt-3 text-sm text-muted">Rien d'enregistré ce jour-là.</p>

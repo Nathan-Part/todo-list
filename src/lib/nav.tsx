@@ -15,6 +15,7 @@ export type SheetState =
   | { type: 'gap'; startAt: number; endAt: number }
   | { type: 'dayLine'; entryId: string; sessionId?: string; subtaskId?: string }
   | { type: 'catchUp'; entryId: string }
+  | { type: 'hourly'; day: DayKey }
   | {
       type: 'timeEntry'
       entryId: string

@@ -25,6 +25,7 @@ import { RoutinesView } from './views/RoutinesView'
 import { SettingsSheet } from './views/SettingsSheet'
 import { VersionsSheet } from './views/VersionsSheet'
 import { GapSheet } from './views/GapSheet'
+import { HourlySheet } from './views/HourlySheet'
 import { TaskSheet } from './views/TaskSheet'
 import { TimeEntrySheet } from './views/TimeEntrySheet'
 import { Welcome } from './views/Welcome'
@@ -276,6 +277,7 @@ function Shell() {
           onClose={close}
         />
       )}
+      {sheet?.type === 'hourly' && <HourlySheet key={sheet.day} day={sheet.day} onClose={close} />}
       {sheet?.type === 'catchUp' && <CatchUpSheet key={sheet.entryId} entryId={sheet.entryId} onClose={close} />}
       {sheet?.type === 'timeEntry' && (
         <TimeEntrySheet
