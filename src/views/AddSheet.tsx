@@ -3,16 +3,17 @@ import { useState } from 'react'
 import { CategoryChips, EndDateField, EstimateChips, PlaceChips, TimeField, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
-import { addTask, addUnplanned, createRoutine, taskEntryId } from '../domain/actions'
+import { addSubtask, addTask, addUnplanned, createRoutine, markDoneOnDay, taskEntryId } from '../domain/actions'
 import { suggestEstimate } from '../domain/insights'
 import { addDays } from '../domain/dates'
-import type { DayKey, Frequency } from '../domain/types'
+import type { DayKey, Frequency, RoutineStep } from '../domain/types'
 import { dayShort, formatMin } from '../lib/format'
 import { useCategories } from '../lib/hooks'
 import { useNav } from '../lib/nav'
 import { useToast } from '../lib/toast'
+import { RoutineStepsEditor, stepsTotal } from './RoutineSheet'
 
-type Plan = 'today' | 'tomorrow' | 'date' | 'reserve'
+type Plan = 'yesterday' | 'today' | 'tomorrow' | 'date' | 'reserve'
 type Repeat = 'never' | 'daily' | 'weekdays' | 'interval'
 
 export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'reserve'; onClose: () => void }) {
@@ -20,6 +21,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
   const { active: categories } = useCategories()
   const toast = useToast()
   const tomorrow = addDays(today, 1)
+  const yesterday = addDays(today, -1)
 
   const start = initialPlan ?? (selectedDay >= today ? selectedDay : today)
   const [plan, setPlan] = useState<Plan>(
@@ -38,11 +40,16 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
   const [endDate, setEndDate] = useState<DayKey | undefined>()
   const [time, setTime] = useState<string | undefined>()
   const [onSite, setOnSite] = useState(false)
+  const [steps, setSteps] = useState<RoutineStep[]>([])
   const suggestion = useLiveQuery(() => suggestEstimate(db, name), [name])
   const [busy, setBusy] = useState(false)
 
   const repeating = repeat !== 'never'
-  const day: DayKey = plan === 'today' ? today : plan === 'tomorrow' ? tomorrow : date
+  // « Hier » n'a de sens que pour une tâche ponctuelle déjà faite
+  const effectivePlan: Plan = repeating && plan === 'yesterday' ? 'today' : plan
+  const day: DayKey =
+    effectivePlan === 'yesterday' ? yesterday : effectivePlan === 'today' ? today : effectivePlan === 'tomorrow' ? tomorrow : date
+  const stepsSum = stepsTotal(steps)
   const valid =
     name.trim().length > 0 &&
     (repeat !== 'weekdays' || weekdays.length > 0) &&
@@ -70,6 +77,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             note,
             time,
             onSite,
+            steps,
             startDate: plan === 'reserve' ? today : day,
             endDate: endDate && endDate >= (plan === 'reserve' ? today : day) ? endDate : undefined,
           },
@@ -77,7 +85,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
         )
         toast({ text: 'Routine créée', duration: 3000 })
       } else {
-        await addTask(
+        const id = await addTask(
           db,
           {
             name,
@@ -91,6 +99,14 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
           },
           nowMs,
         )
+        for (const st of steps) await addSubtask(db, id, { name: st.name, estimateMin: st.estimateMin })
+        if (effectivePlan === 'yesterday') {
+          // tâche oubliée d'hier : elle est déjà faite, on demande juste les heures
+          const entryId = taskEntryId(id, yesterday)
+          await markDoneOnDay(db, entryId, Date.now())
+          setSheet({ type: 'timeEntry', entryId, name: name.trim(), estimateMin: stepsSum ?? estimate, day: yesterday })
+          return
+        }
         if (plan === 'reserve') toast({ text: 'Ajoutée à la réserve', duration: 3000 })
         else if (day !== today) toast({ text: `Ajoutée pour le ${dayShort(day)}`, duration: 3000 })
       }
@@ -160,12 +176,28 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             <span className="font-semibold">Utiliser</span>
           </button>
         )}
-        <EstimateChips value={estimate} onChange={setEstimate} />
+        {stepsSum !== undefined ? (
+          <p className="text-sm">
+            <span className="font-semibold">{formatMin(stepsSum)}</span>
+            <span className="text-muted"> · somme des étapes</span>
+          </p>
+        ) : (
+          <EstimateChips value={estimate} onChange={setEstimate} />
+        )}
+      </Field>
+
+      <Field label={steps.length ? `Sous-tâches · ${steps.length}` : 'Sous-tâches'}>
+        <RoutineStepsEditor steps={steps} onChange={setSteps} />
       </Field>
 
       <Field label={repeating ? 'À partir de' : 'Quand'}>
         <div className="flex flex-wrap gap-1.5">
-          <Chip active={plan === 'today'} onClick={() => setPlan('today')}>
+          {!repeating && (
+            <Chip active={plan === 'yesterday'} onClick={() => setPlan('yesterday')}>
+              Hier
+            </Chip>
+          )}
+          <Chip active={effectivePlan === 'today'} onClick={() => setPlan('today')}>
             Aujourd'hui
           </Chip>
           <Chip active={plan === 'tomorrow'} onClick={() => setPlan('tomorrow')}>
@@ -180,6 +212,9 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             </Chip>
           )}
         </div>
+        {effectivePlan === 'yesterday' && (
+          <p className="mt-2 text-xs text-muted">Une tâche d'hier est notée comme déjà faite : on te demandera juste les heures.</p>
+        )}
         {plan === 'date' && (
           <input
             type="date"
@@ -191,7 +226,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
         )}
       </Field>
 
-      {plan !== 'reserve' && (
+      {plan !== 'reserve' && effectivePlan !== 'yesterday' && (
         <Field label="Heure">
           <TimeField value={time} onChange={setTime} />
         </Field>
