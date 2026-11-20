@@ -1,19 +1,67 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
+import { db, getMeta, setMeta } from '../db'
 import { pauseTimer, startTimer } from '../domain/actions'
 import { loadItem } from '../domain/queries'
-import { currentStep, liveSpentSec, liveStepSec } from '../domain/stats'
+import { type DayItem, currentStep, liveSpentSec, liveStepSec } from '../domain/stats'
 import { formatClock, formatMin } from '../lib/format'
 import { useNow, useRunning } from '../lib/hooks'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
 import { Icon, btnGhost, btnPrimary } from './ui'
 
+const LONG_SEC = 3600
+const SNOOZE_KEY = 'longTaskSnooze'
+
+/** Clé de l'alerte « plus d'une heure » : la tâche (sur tous ses jours) ou le passage de routine. */
+const alertKey = (item: DayItem) => item.taskId ?? item.id
+
+/** Temps total sur une tâche sans durée prévue, tous jours confondus. */
+function longTaskSec(item: DayItem, now: number): number | undefined {
+  if (item.estimateMin) return undefined
+  return liveSpentSec(item, now) + (item.otherDaysSec ?? 0)
+}
+
+/** L'alerte est-elle à montrer ? Elle est masquée jusqu'au temps choisi avec « Me le rappeler dans… ». */
+function useLongTaskAlert(item: DayItem | undefined, now: number) {
+  const snooze = useLiveQuery(() => getMeta<Record<string, number>>(db, SNOOZE_KEY, {}), [])
+  if (!item || snooze === undefined) return { show: false, total: 0 }
+  const total = longTaskSec(item, now)
+  if (total === undefined || total < LONG_SEC) return { show: false, total: total ?? 0 }
+  return { show: total >= (snooze[alertKey(item)] ?? 0), total }
+}
+
+/** Plus d'une heure sur une tâche sans durée : on invite à changer de tâche ou à s'arrêter. */
+function LongTaskAlert({ item, total }: { item: DayItem; total: number }) {
+  const remind = async (min: number) => {
+    const all = await getMeta<Record<string, number>>(db, SNOOZE_KEY, {})
+    await setMeta(db, SNOOZE_KEY, { ...all, [alertKey(item)]: total + min * 60 })
+  }
+  return (
+    <div className="mt-5 w-full max-w-xs rounded-2xl bg-bad-soft px-4 py-3 text-center">
+      <p className="text-sm font-semibold text-bad">Change de tâche ou arrête-toi pour mieux gérer ton temps !</p>
+      <div className="mt-2 text-xs text-muted">Me le rappeler dans</div>
+      <div className="mt-1.5 flex justify-center gap-1.5">
+        {[15, 30, 60].map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => void remind(m)}
+            className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-ink active:scale-95"
+          >
+            {formatMin(m)}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** Barre visible sur tous les onglets tant qu'un chrono tourne. */
 export function MiniPlayer() {
   const { setFocus } = useNav()
   const running = useRunning()
   const now = useNow(1000)
+  const alert = useLongTaskAlert(running?.item, now)
   if (!running) return null
   const { item } = running
   // sur une tâche ou une routine découpée, le chrono affiché est celui de l'étape en cours
@@ -25,10 +73,16 @@ export function MiniPlayer() {
       <div className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl bg-accent px-3 py-2 text-on-accent shadow-lg">
         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setFocus(item.id)}>
           <div className="truncate text-sm font-semibold">{step ? step.name : item.name}</div>
-          <div className="truncate text-xs opacity-80">
-            {step ? `Étape de « ${item.name} »` : 'Chrono en cours'}
-            {est ? ` · estimé ${formatMin(est)}` : ''}
-          </div>
+          {alert.show ? (
+            <div className="mt-0.5 w-fit max-w-full truncate rounded-md bg-bad px-1.5 text-xs font-semibold text-on-accent">
+              Plus d'1 h : change de tâche ou arrête-toi !
+            </div>
+          ) : (
+            <div className="truncate text-xs opacity-80">
+              {step ? `Étape de « ${item.name} »` : 'Chrono en cours'}
+              {est ? ` · estimé ${formatMin(est)}` : ''}
+            </div>
+          )}
         </button>
         <span className="text-lg font-semibold tabular">{formatClock(spent)}</span>
         <button
@@ -54,6 +108,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
   }, [entryId])
   const now = useNow(1000)
   const { complete, toggleStep } = useItemActions()
+  const alert = useLongTaskAlert(item ?? undefined, now)
 
   if (!item) return null
   const subtasks = item.subtasks
@@ -115,6 +170,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
         ) : (
           <div className="mt-3 text-sm text-warn">{currentSub ? "Pas de durée estimée pour cette étape" : 'Pas de durée estimée'}</div>
         )}
+        {alert.show && <LongTaskAlert item={item} total={alert.total} />}
         {(subtasks.length > 0 || !!item.otherDaysSec) && (
           <div className="mt-3 text-xs text-muted tabular">
             Total {item.kind === 'routine' ? 'routine' : 'tâche'} : {formatClock(totalSpent + (item.otherDaysSec ?? 0))}
