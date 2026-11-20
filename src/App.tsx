@@ -8,6 +8,8 @@ import { DayLineSheet } from './views/DayLineSheet'
 import { FocusScreen, MiniPlayer } from './components/Timer'
 import { Icon, type IconName, btnGhost, btnPrimary } from './components/ui'
 import { META, db, getMeta } from './db'
+import { copiesDb, takeDailyCopy } from './domain/copies'
+import { useToast } from './lib/toast'
 import { absenceToConfirm, runRollover } from './domain/rollover'
 import { dayShort, plural } from './lib/format'
 import { useReserve, useRunning, useRunningSession, useToday } from './lib/hooks'
@@ -165,6 +167,15 @@ function Shell() {
     void cleanupReopenedTimes(db)
     void backfillStepTimes(db)
   }, [])
+
+  // le tiroir : une copie automatique par jour, dès qu'il existe une tâche
+  const toast = useToast()
+  useEffect(() => {
+    if (!ready) return
+    takeDailyCopy(db, copiesDb, today, Date.now())
+      .then((made) => made && toast({ text: '✓ Copie du jour enregistrée', duration: 2000 }))
+      .catch(() => undefined)
+  }, [ready, today, toast])
 
   const nav = useMemo(
     () => ({ today, tab, setTab, selectedDay, setSelectedDay, sheet, setSheet, focusEntryId, setFocus, highlight, setHighlight }),

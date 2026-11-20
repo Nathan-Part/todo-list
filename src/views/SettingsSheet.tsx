@@ -5,9 +5,11 @@ import { CATEGORY_COLORS, CategoryDot, Field, Icon, Sheet, btnGhost, btnSoft, in
 import { DEFAULT_CAPACITY, META, db, getMeta, setMeta } from '../db'
 import { archiveCategory, saveCategory } from '../domain/actions'
 import { exportData, importData } from '../domain/backup'
-import { dayShort } from '../lib/format'
+import { copiesDb, copyData, listCopies, restoreCopy } from '../domain/copies'
+import { dayLabel, dayShort, timeOfDay } from '../lib/format'
 import { saveTextFile } from '../lib/files'
 import { useCategories } from '../lib/hooks'
+import { useNav } from '../lib/nav'
 import { useToast } from '../lib/toast'
 
 export function SettingsSheet({ onClose }: { onClose: () => void }) {
@@ -141,7 +143,77 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
         </div>
       </Field>
 
+      <CopiesField onRestored={onClose} />
+
       <div className="mt-8 text-center text-xs text-muted">Ma journée · version 0.1</div>
     </Sheet>
+  )
+}
+
+/** Le tiroir : copies automatiques, une par jour, à restaurer en cas d'erreur. */
+function CopiesField({ onRestored }: { onRestored: () => void }) {
+  const { today } = useNav()
+  const toast = useToast()
+  const copies = useLiveQuery(() => listCopies(copiesDb), [])
+  const [all, setAll] = useState(false)
+  const [busy, setBusy] = useState(false)
+  if (!copies) return null
+  const shown = all ? copies : copies.slice(0, 7)
+
+  const restore = async (id: string, label: string) => {
+    if (!window.confirm(`Revenir à l'état du ${label} ? Ce que tu as fait depuis sera remplacé (l'état actuel est gardé dans le tiroir).`)) return
+    setBusy(true)
+    try {
+      await restoreCopy(db, copiesDb, id, today, Date.now())
+      toast({ text: `Données revenues au ${label}`, duration: 4000 })
+      onRestored()
+    } catch (e) {
+      toast({ text: e instanceof Error ? e.message : 'Restauration impossible', duration: 5000 })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const exportCopy = async (id: string, day: string) => {
+    const data = await copyData(copiesDb, id)
+    if (data) await saveTextFile(`ma-journee-copie-${day}.json`, data)
+  }
+
+  return (
+    <Field label="Copies automatiques">
+      <p className="text-sm text-muted">
+        Chaque jour, l'app garde une copie de tes données. Cette semaine : une par jour ; les semaines passées : la dernière de
+        chaque semaine. Elles restent sur ce téléphone.
+      </p>
+      {copies.length === 0 ? (
+        <p className="mt-2 text-sm text-muted">Aucune copie pour l'instant : la première se fera à ta prochaine ouverture.</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-line overflow-hidden rounded-2xl border border-line">
+          {shown.map((c) => {
+            const label = dayLabel(c.day, today).toLowerCase() === "aujourd'hui" ? "aujourd'hui" : dayShort(c.day)
+            return (
+              <li key={c.id} className="flex items-center gap-2 px-3 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-medium">
+                    {dayLabel(c.day, today)} <span className="text-xs font-normal tabular text-muted">{timeOfDay(c.createdAt)}</span>
+                  </span>
+                  {c.kind === 'beforeRestore' && <span className="block text-xs text-warn">état avant une restauration</span>}
+                </span>
+                <button type="button" className={btnGhost} disabled={busy} onClick={() => void exportCopy(c.id, c.day)} aria-label="Exporter cette copie">
+                  <Icon name="inbox" className="size-4" />
+                </button>
+                <button type="button" className={btnSoft} disabled={busy} onClick={() => void restore(c.id, label)}>
+                  Restaurer
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+      {copies.length > 7 && (
+        <button type="button" className="mt-2 text-sm font-medium text-accent" onClick={() => setAll(!all)}>
+          {all ? 'Voir moins' : `Voir les ${copies.length} copies`}
+        </button>
+      )}
+    </Field>
   )
 }
