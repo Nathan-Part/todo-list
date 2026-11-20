@@ -244,7 +244,7 @@ export function completeEntry(d: AppDB, entryId: string, nowMs: number): Promise
       .where('taskId')
       .equals(task.id)
       .filter((s) => s.status === 'todo')
-      .modify({ status: 'done', doneDate: today, doneAt: nowMs })
+      .modify({ status: 'done', doneDate: today, doneAt: nowMs, withTask: true })
   })
 }
 
@@ -283,6 +283,12 @@ export function reopenEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
     }
     const task = await d.tasks.get(e.taskId!)
     if (!task) return
+    // les étapes cochées seulement parce que la tâche entière l'était redeviennent à faire
+    await d.subtasks
+      .where('taskId')
+      .equals(task.id)
+      .filter((s) => !!s.withTask)
+      .modify({ status: 'todo', doneDate: undefined, doneAt: undefined, withTask: undefined })
     if (e.date === today) {
       await d.entries.update(e.id, { status: 'todo', doneAt: undefined, closedAt: undefined })
       await d.tasks.update(task.id, { status: 'todo', doneDate: undefined, doneAt: undefined })
@@ -321,6 +327,11 @@ export function markDoneOnDay(d: AppDB, entryId: string, nowMs: number): Promise
     const open = await d.entries.where('[taskId+status]').equals([task.id, 'todo']).toArray()
     for (const o of open) if (o.id !== e.id) await d.entries.delete(o.id)
     await d.entries.update(e.id, { status: 'done', doneAt: nowMs, closedAt: nowMs, ...snap(task) })
+    await d.subtasks
+      .where('taskId')
+      .equals(task.id)
+      .filter((s) => s.status === 'todo')
+      .modify({ status: 'done', doneDate: e.date, doneAt: nowMs, withTask: true })
     await d.tasks.update(task.id, {
       status: 'done',
       doneDate: e.date,
@@ -788,9 +799,15 @@ export function toggleSubtask(d: AppDB, id: string, nowMs: number): Promise<bool
       }
       return false
     }
-    await d.subtasks.update(id, { status: 'todo', doneDate: undefined, doneAt: undefined })
+    await d.subtasks.update(id, { status: 'todo', doneDate: undefined, doneAt: undefined, withTask: undefined })
     const task = await d.tasks.get(sub.taskId)
     if (task?.status === 'done') {
+      // seule cette étape redevient à faire : les autres restent faites
+      await d.subtasks
+        .where('taskId')
+        .equals(sub.taskId)
+        .filter((s) => !!s.withTask)
+        .modify({ withTask: undefined })
       const done = (await d.entries.where('taskId').equals(sub.taskId).toArray()).find((e) => e.status === 'done')
       if (done) await reopenEntry(d, done.id, nowMs)
     }

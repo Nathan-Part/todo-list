@@ -30,7 +30,16 @@ export interface DayItem {
   routineEnd?: DayKey
   subtasksDone: number
   /** Étapes (sous-tâches d'une tâche ou étapes d'une routine), dans l'ordre, avec leur temps chronométré terminé. */
-  subtasks: { id: string; name: string; status: 'todo' | 'done'; estimateMin?: number; spentSec?: number; doneDate?: DayKey }[]
+  subtasks: {
+    id: string
+    name: string
+    status: 'todo' | 'done'
+    estimateMin?: number
+    spentSec?: number
+    doneDate?: DayKey
+    /** Faite en cochant la tâche entière. */
+    withTask?: boolean
+  }[]
   /** Routine facultative. */
   optional?: boolean
   /** Étape dont le chrono tourne. */

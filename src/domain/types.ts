@@ -47,6 +47,8 @@ export interface Subtask {
   status: 'todo' | 'done'
   doneDate?: DayKey
   doneAt?: number
+  /** Cochée en même temps que la tâche entière (pas séparément) : le résumé ne montre que la tâche. */
+  withTask?: boolean
   position: number
 }
 

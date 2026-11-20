@@ -39,7 +39,9 @@ export function useItemActions() {
       const today = dayKeyOf(nowMs)
       const realSec = liveSpentSec(item, nowMs)
       await completeEntry(db, item.id, nowMs)
-      if (item.hasSessions) {
+      // étapes restantes cochées avec la tâche entière : elles ont été faites en même temps
+      const pendingSteps = item.kind === 'task' ? item.subtasks.filter((st) => st.status === 'todo' && st.id !== item.runningSubtaskId) : []
+      if (item.hasSessions && pendingSteps.length === 0) {
         // retour immédiat : temps réel face à l'estimation
         const msg = completionFeedback(realSec, item.estimateMin)
         if (msg) toast({ text: msg, duration: 4500 })

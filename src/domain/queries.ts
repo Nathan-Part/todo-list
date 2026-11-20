@@ -124,7 +124,14 @@ function stepsOf(e: Pick<Entry, 'status' | 'stepsDone'>, subs: Subtask[] | undef
     return subs
       .slice()
       .sort((a, b) => a.position - b.position)
-      .map((st) => ({ id: st.id, name: st.name, status: st.status, estimateMin: st.estimateMin, doneDate: st.doneDate }))
+      .map((st) => ({
+        id: st.id,
+        name: st.name,
+        status: st.status,
+        estimateMin: st.estimateMin,
+        doneDate: st.doneDate,
+        withTask: st.withTask,
+      }))
   }
   if (!routine?.steps?.length) return []
   const done = new Set(e.stepsDone ?? [])

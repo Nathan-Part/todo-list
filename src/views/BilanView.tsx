@@ -147,17 +147,28 @@ function DaySummary() {
   const shortTotal = shortGaps.reduce((n, g) => n + g.minutes, 0)
   const gapTotal = gaps.reduce((n, g) => n + g.minutes, 0)
   const timedIds = new Set(timed.map((t) => t.item.id))
-  const untimed = items.filter((i) => i.status === 'done' && !timedIds.has(i.id))
+  // tâche finie sans horaire, ou dont les étapes cochées avec elle n'ont pas encore leurs heures
+  const untimed = items.filter(
+    (i) =>
+      i.status === 'done' &&
+      (!timedIds.has(i.id) || (i.subtasks.some((st) => st.withTask) && !timed.some((t) => t.item.id === i.id && !t.step))),
+  )
   // étapes finies ce jour-là sans horaire. Tâche pas encore finie : toutes ses étapes faites.
   // Tâche finie : seulement si elle est suivie étape par étape (au moins une étape a ses heures),
-  // sinon sa propre ligne suffit.
+  // sinon sa propre ligne suffit. Les étapes cochées avec la tâche entière n'apparaissent que sous son nom.
   const timedSteps = new Set(timed.filter((t) => t.step).map((t) => `${t.item.id}|${t.step!.id}`))
   const steppedItems = new Set(timed.filter((t) => t.step).map((t) => t.item.id))
   const untimedSteps = items
     .filter((i) => i.status === 'todo' || (i.status === 'done' && steppedItems.has(i.id)))
     .flatMap((i) =>
       i.subtasks
-        .filter((st) => st.status === 'done' && (i.kind === 'routine' || st.doneDate === day) && !timedSteps.has(`${i.id}|${st.id}`))
+        .filter(
+          (st) =>
+            st.status === 'done' &&
+            !st.withTask &&
+            (i.kind === 'routine' || st.doneDate === day) &&
+            !timedSteps.has(`${i.id}|${st.id}`),
+        )
         .map((st) => ({ item: i, step: st })),
     )
   const stepsDone = items

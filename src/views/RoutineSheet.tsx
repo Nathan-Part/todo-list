@@ -373,13 +373,13 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
 }
 
 /** Somme des durées des étapes, s'il y en a au moins une. */
-function stepsTotal(steps: RoutineStep[]): number | undefined {
+export function stepsTotal(steps: RoutineStep[]): number | undefined {
   const timed = steps.filter((x) => x.name.trim() && x.estimateMin)
   return timed.length ? timed.reduce((n, x) => n + (x.estimateMin ?? 0), 0) : undefined
 }
 
 /** Étapes d'une routine, chacune avec sa durée ; enregistrées avec la routine. */
-function RoutineStepsEditor({ steps, onChange }: { steps: RoutineStep[]; onChange: (s: RoutineStep[]) => void }) {
+export function RoutineStepsEditor({ steps, onChange }: { steps: RoutineStep[]; onChange: (s: RoutineStep[]) => void }) {
   const [name, setName] = useState('')
   const [minutes, setMinutes] = useState<number | undefined>()
   const [editing, setEditing] = useState<RoutineStep | null>(null)

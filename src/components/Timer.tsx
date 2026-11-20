@@ -134,11 +134,9 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
                       type="button"
                       aria-label={st.status === 'done' ? 'Décocher' : 'Cocher'}
                       onClick={async () => {
-                        const wasRunning = running && item.runningSubtaskId === st.id
+                        // étape cochée : le chrono se met en pause, tu relances la suivante quand tu es prêt
                         const finished = await toggleStep({ entryId: item.id, kind: item.kind, parentName: item.name }, st)
                         if (finished) onClose()
-                        // étape en cours cochée : le chrono passe tout seul à la suivante
-                        else if (wasRunning && st.status === 'todo') await startTimer(db, entryId, Date.now())
                       }}
                       className={`flex size-6 shrink-0 items-center justify-center rounded-full border-2 ${
                         st.status === 'done' ? 'border-good bg-good text-on-accent' : 'border-line text-transparent'
@@ -177,18 +175,24 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
           onClick={() => (running ? pauseTimer(db, Date.now()) : startTimer(db, item.id, Date.now()))}
         >
           <Icon name={running ? 'pause' : 'play'} fill={!running} className="size-5" />
-          {running ? 'Pause' : 'Reprendre'}
+          {running ? 'Pause' : currentSub && !(currentSub.spentSec ?? 0) ? 'Lancer' : 'Reprendre'}
         </button>
         <button
           type="button"
           className={`${btnPrimary} flex-1 py-3.5 text-base`}
           onClick={async () => {
+            // découpée : « Terminer » finit seulement l'étape en cours, et le chrono se met en pause
+            if (currentSub && currentSub.status === 'todo') {
+              const finished = await toggleStep({ entryId: item.id, kind: item.kind, parentName: item.name }, currentSub)
+              if (finished) onClose()
+              return
+            }
             await complete(item)
             onClose()
           }}
         >
           <Icon name="check" className="size-5" strokeWidth={3} />
-          Terminer
+          {currentSub ? "Finir l'étape" : 'Terminer'}
         </button>
       </div>
     </div>
