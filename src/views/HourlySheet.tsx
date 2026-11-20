@@ -106,7 +106,9 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
   })()
   const future = day === today && from > now
   const elapsed = day === today ? Math.max(0, Math.min(to, now) - from) : HOUR
-  const busyMin = Math.round(busyMs / 60_000)
+  // au tout début d'une heure, on n'affiche jamais « 0 min sur 0 »
+  const elapsedMin = Math.max(1, Math.round(elapsed / 60_000))
+  const busyMin = busyMs > 0 ? Math.min(elapsedMin, Math.max(1, Math.round(busyMs / 60_000))) : 0
 
   // rangées pour les blocs qui se chevauchent
   const lanes: number[] = []
@@ -176,7 +178,7 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
           <div className="text-xs text-muted">
             {future
               ? 'Pas encore arrivé'
-              : `${busyMin} min d'activité sur ${Math.round(elapsed / 60_000)}${elapsed < HOUR ? ' (heure en cours)' : ''}`}
+              : `${busyMin} min d'activité sur ${elapsedMin}${elapsed < HOUR ? ' (heure en cours)' : ''}`}
           </div>
         </div>
         <button

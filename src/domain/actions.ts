@@ -233,9 +233,11 @@ export function completeEntry(d: AppDB, entryId: string, nowMs: number): Promise
       movedTo: undefined,
       ...snap(task),
     })
+    // le jour « fait » est celui du passage : un chrono resté ouvert après le changement de jour
+    // garde la tâche sur sa journée de départ
     await d.tasks.update(task.id, {
       status: 'done',
-      doneDate: today,
+      doneDate: target.date,
       doneAt: nowMs,
       needsReview: false,
       reserveSince: undefined,
@@ -244,7 +246,7 @@ export function completeEntry(d: AppDB, entryId: string, nowMs: number): Promise
       .where('taskId')
       .equals(task.id)
       .filter((s) => s.status === 'todo')
-      .modify({ status: 'done', doneDate: today, doneAt: nowMs, withTask: true })
+      .modify({ status: 'done', doneDate: target.date, doneAt: nowMs, withTask: true })
   })
 }
 
@@ -283,6 +285,12 @@ export function reopenEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
     }
     const task = await d.tasks.get(e.taskId!)
     if (!task) return
+    // ancienne trace d'un « fait » (tâche rouverte depuis, ou refaite un autre jour) :
+    // on corrige seulement l'historique de ce jour-là, la tâche elle-même ne change pas
+    if (task.status !== 'done' || task.doneDate !== e.date) {
+      await d.entries.update(e.id, { status: 'not_done', doneAt: undefined, closedAt: nowMs })
+      return
+    }
     // les étapes cochées seulement parce que la tâche entière l'était redeviennent à faire
     await d.subtasks
       .where('taskId')
@@ -322,10 +330,18 @@ export function markDoneOnDay(d: AppDB, entryId: string, nowMs: number): Promise
       return
     }
     const task = await d.tasks.get(e.taskId!)
-    if (!task) return
+    // une tâche déjà faite (un autre jour) ou supprimée ne se « refait » pas dans le passé
+    if (!task || task.status !== 'todo') return
     // la tâche n'est plus à faire : on retire ses passages ouverts
     const open = await d.entries.where('[taskId+status]').equals([task.id, 'todo']).toArray()
-    for (const o of open) if (o.id !== e.id) await d.entries.delete(o.id)
+    for (const o of open) {
+      if (o.id === e.id) continue
+      // le temps déjà passé sur un passage ouvert n'est pas perdu : il suit la tâche sur le jour où elle est faite
+      const running = await d.sessions.where('running').equals(1).first()
+      if (running?.entryId === o.id) await closeSession(d, running, nowMs)
+      await d.sessions.where('entryId').equals(o.id).modify({ entryId: e.id, date: e.date })
+      await d.entries.delete(o.id)
+    }
     await d.entries.update(e.id, { status: 'done', doneAt: nowMs, closedAt: nowMs, ...snap(task) })
     await d.subtasks
       .where('taskId')
@@ -364,6 +380,8 @@ export function moveDoneTask(d: AppDB, entryId: string, target: DayKey, nowMs: n
     const shift = diffDays(target, e.date)
     const newId_ = taskEntryId(task.id, target)
     const existing = await d.entries.get(newId_)
+    // ancienne trace d'un « fait » (tâche rouverte ou refaite depuis) : elle ne se déplace pas
+    if (task.status !== 'done' || task.doneDate !== e.date) return undefined
     const moved = {
       status: 'done' as const,
       movedTo: undefined,
@@ -774,6 +792,7 @@ export function addSubtask(
   d: AppDB,
   taskId: string,
   input: { name: string; estimateMin?: number },
+  nowMs = Date.now(),
 ): Promise<string> {
   return tx(d, async () => {
     const subs = await d.subtasks.where('taskId').equals(taskId).toArray()
@@ -796,8 +815,8 @@ export function addSubtask(
         .equals(taskId)
         .filter((s) => !!s.withTask)
         .modify({ withTask: undefined })
-      const done = (await d.entries.where('taskId').equals(taskId).toArray()).find((e) => e.status === 'done')
-      if (done) await reopenEntry(d, done.id, Date.now())
+      const done = (await d.entries.where('taskId').equals(taskId).toArray()).find((e) => e.status === 'done' && e.date === task.doneDate)
+      if (done) await reopenEntry(d, done.id, nowMs)
     }
     return id
   })
@@ -868,7 +887,7 @@ export function toggleSubtask(d: AppDB, id: string, nowMs: number): Promise<bool
         .equals(sub.taskId)
         .filter((s) => !!s.withTask)
         .modify({ withTask: undefined })
-      const done = (await d.entries.where('taskId').equals(sub.taskId).toArray()).find((e) => e.status === 'done')
+      const done = (await d.entries.where('taskId').equals(sub.taskId).toArray()).find((e) => e.status === 'done' && e.date === task.doneDate)
       if (done) await reopenEntry(d, done.id, nowMs)
     }
     return false

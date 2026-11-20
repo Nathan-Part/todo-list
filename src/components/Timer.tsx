@@ -236,7 +236,7 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
         </button>
         <button
           type="button"
-          className={`${btnPrimary} flex-1 py-3.5 text-base`}
+          className={`${btnPrimary} flex-1 whitespace-nowrap px-2 py-3.5 text-base`}
           onClick={async () => {
             // découpée : « Terminer » finit seulement l'étape en cours, et le chrono se met en pause
             if (currentSub && currentSub.status === 'todo') {

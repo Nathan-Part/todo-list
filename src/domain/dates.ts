@@ -106,3 +106,28 @@ export function daysBetween(from: DayKey, to: DayKey): DayKey[] {
   for (let d = from; d <= to; d = addDays(d, 1)) out.push(d)
   return out
 }
+
+/**
+ * « 09:15 » + jour → instant ; une fin avant le début passe au lendemain.
+ * La journée va jusqu'à 5 h du matin : « 01:30 » sur la journée de lundi, c'est mardi à 1 h 30.
+ */
+export function rangeToMs(day: DayKey, start: string, end: string, nowMs = Date.now()): { startAt: number; endAt: number } | null {
+  if (!start || !end) return null
+  const [y, m, d] = day.split('-').map(Number)
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  const night = sh < DAY_START_HOUR ? 1 : 0
+  let startAt = new Date(y, m - 1, d + night, sh, sm).getTime()
+  let endAt = new Date(y, m - 1, d + night, eh, em).getTime()
+  if (endAt <= startAt) endAt += 86_400_000
+  // un temps passé ne peut pas commencer dans le futur : c'était la veille au soir (journée déjà close par
+  // « Je vais dormir ») ou tôt ce matin (juste après 5 h, pour un début avant 5 h)
+  const now = nowMs
+  if (startAt > now && (night === 1 || day > naturalDayOf(now))) {
+    startAt = new Date(y, m - 1, d + night - 1, sh, sm).getTime()
+    endAt = new Date(y, m - 1, d + night - 1, eh, em).getTime()
+    if (endAt <= startAt) endAt += 86_400_000
+  }
+  return { startAt, endAt }
+}
+

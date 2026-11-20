@@ -20,7 +20,9 @@ import {
   pauseTimer,
   startTimer,
 } from '../domain/actions'
-import { DAY_START_HOUR, diffDays, naturalDayOf } from '../domain/dates'
+import { diffDays, rangeToMs } from '../domain/dates'
+
+export { rangeToMs }
 import { type TimeStats, deviationPct, spreadLabel, trendLabel } from '../domain/insights'
 import type { Category, DayKey, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
@@ -194,30 +196,6 @@ export function WeekdayToggles({ value, onChange }: { value: number[]; onChange:
       })}
     </div>
   )
-}
-
-/**
- * « 09:15 » + jour → instant ; une fin avant le début passe au lendemain.
- * La journée va jusqu'à 5 h du matin : « 01:30 » sur la journée de lundi, c'est mardi à 1 h 30.
- */
-export function rangeToMs(day: DayKey, start: string, end: string): { startAt: number; endAt: number } | null {
-  if (!start || !end) return null
-  const [y, m, d] = day.split('-').map(Number)
-  const [sh, sm] = start.split(':').map(Number)
-  const [eh, em] = end.split(':').map(Number)
-  const night = sh < DAY_START_HOUR ? 1 : 0
-  let startAt = new Date(y, m - 1, d + night, sh, sm).getTime()
-  let endAt = new Date(y, m - 1, d + night, eh, em).getTime()
-  if (endAt <= startAt) endAt += 86_400_000
-  // un temps passé ne peut pas commencer dans le futur : c'était la veille au soir (journée déjà close par
-  // « Je vais dormir ») ou tôt ce matin (juste après 5 h, pour un début avant 5 h)
-  const now = Date.now()
-  if (startAt > now && (night === 1 || day > naturalDayOf(now))) {
-    startAt = new Date(y, m - 1, d + night - 1, sh, sm).getTime()
-    endAt = new Date(y, m - 1, d + night - 1, eh, em).getTime()
-    if (endAt <= startAt) endAt += 86_400_000
-  }
-  return { startAt, endAt }
 }
 
 /** Saisie « de 14:00 à 14:45 ». */

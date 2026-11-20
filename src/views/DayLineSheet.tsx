@@ -27,6 +27,11 @@ export function DayLineSheet({
   const [newDay, setNewDay] = useState('')
   const toast = useToast()
   const item = useLiveQuery(() => loadItem(db, entryId), [entryId])
+  // la tâche elle-même : une ancienne trace (tâche rouverte ou refaite depuis) ne se déplace pas
+  const task = useLiveQuery(async () => {
+    const e = await db.entries.get(entryId)
+    return e?.taskId ? db.tasks.get(e.taskId) : undefined
+  }, [entryId])
   const session = useLiveQuery(() => (sessionId ? db.sessions.get(sessionId) : undefined), [sessionId])
   const [start, setStart] = useState('')
   const [end, setEnd] = useState('')
@@ -45,7 +50,7 @@ export function DayLineSheet({
   const range = rangeToMs(item.date, start, end)
   const running = session?.running === 1
   // une tâche faite (pas une étape ni une routine) peut être déplacée sur un autre jour
-  const canMove = !step && item.kind === 'task' && item.status === 'done'
+  const canMove = !step && item.kind === 'task' && item.status === 'done' && task?.status === 'done' && task.doneDate === item.date
 
   const save = async () => {
     if (!range) return
