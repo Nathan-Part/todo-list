@@ -1,5 +1,5 @@
 import { type AppDB, newId } from '../db'
-import { addDays, dayKeyOf } from './dates'
+import { addDays, dayKeyOf, diffDays } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
 import type { Category, DayKey, Entry, Frequency, Pause, Routine, RoutineStep, Session, Task } from './types'
 
@@ -339,6 +339,60 @@ export function markDoneOnDay(d: AppDB, entryId: string, nowMs: number): Promise
       needsReview: false,
       reserveSince: undefined,
     })
+  })
+}
+
+/** Décale un instant d'un nombre de jours en gardant la même heure locale. */
+function shiftDays(ms: number, days: number): number {
+  const d = new Date(ms)
+  d.setDate(d.getDate() + days)
+  return d.getTime()
+}
+
+/**
+ * Tâche faite, notée sur le mauvais jour : on la déplace (avec ses heures) sur un autre jour passé ou aujourd'hui.
+ * Retourne l'identifiant du passage sur le nouveau jour.
+ */
+export function moveDoneTask(d: AppDB, entryId: string, target: DayKey, nowMs: number): Promise<string | undefined> {
+  return tx(d, async () => {
+    const today = dayKeyOf(nowMs)
+    const e = await d.entries.get(entryId)
+    if (!e || e.kind !== 'task' || e.status !== 'done' || target > today) return undefined
+    if (target === e.date) return e.id
+    const task = await d.tasks.get(e.taskId!)
+    if (!task) return undefined
+    const shift = diffDays(target, e.date)
+    const newId_ = taskEntryId(task.id, target)
+    const existing = await d.entries.get(newId_)
+    const moved = {
+      status: 'done' as const,
+      movedTo: undefined,
+      unplanned: e.unplanned,
+      doneAt: e.doneAt,
+      closedAt: e.closedAt,
+      nameSnapshot: e.nameSnapshot,
+      estimateMinSnapshot: e.estimateMinSnapshot,
+      categoryIdSnapshot: e.categoryIdSnapshot,
+    }
+    if (existing) await d.entries.update(newId_, moved)
+    else await d.entries.add({ id: newId_, kind: 'task', taskId: task.id, date: target, position: await nextPosition(d, target), ...moved })
+    const sessions = await d.sessions.where('entryId').equals(e.id).toArray()
+    for (const s of sessions) {
+      await d.sessions.update(s.id, {
+        entryId: newId_,
+        date: target,
+        startAt: s.startAt !== undefined ? shiftDays(s.startAt, shift) : undefined,
+        endAt: s.endAt !== undefined ? shiftDays(s.endAt, shift) : undefined,
+      })
+    }
+    await d.entries.delete(e.id)
+    await d.subtasks
+      .where('taskId')
+      .equals(task.id)
+      .filter((st) => st.status === 'done' && st.doneDate === e.date)
+      .modify({ doneDate: target })
+    await d.tasks.update(task.id, { doneDate: target })
+    return newId_
   })
 }
 
