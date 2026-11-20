@@ -19,50 +19,67 @@ function Search() {
   const results = useLiveQuery(async () => {
     const needle = norm(q.trim())
     if (needle.length < 2) return []
-    const tasks = (await db.tasks.toArray()).filter((t) => norm(`${t.name} ${t.note ?? ''}`).includes(needle))
-    const routines = (await db.routines.toArray()).filter((r) => norm(`${r.name} ${r.note ?? ''}`).includes(needle))
+    const allTasks = await db.tasks.toArray()
+    const allSubtasks = await db.subtasks.toArray()
+    const allRoutines = await db.routines.toArray()
     const entries = await db.entries.toArray()
+    const tasks = allTasks.filter((t) => norm(`${t.name} ${t.note ?? ''}`).includes(needle))
+    const routines = allRoutines.filter((r) => norm(`${r.name} ${r.note ?? ''}`).includes(needle))
+    // sous-tâches et étapes de routine : on montre l'étape et la tâche ou la routine dont elle fait partie
+    const taskById = new Map(allTasks.map((t) => [t.id, t] as const))
+    const subHits = allSubtasks
+      .filter((st) => norm(st.name).includes(needle) && taskById.has(st.taskId))
+      .map((st) => ({ task: taskById.get(st.taskId)!, step: st.name }))
+    const stepHits = allRoutines.flatMap((r) =>
+      (r.steps ?? []).filter((st) => norm(st.name).includes(needle)).map((st) => ({ routine: r, step: st.name, id: st.id })),
+    )
     const goDay = (day: string, id: string) => {
       setQ('')
       setSelectedDay(day)
       setTab('day')
       setHighlight(id)
     }
+    const taskResult = (t: (typeof allTasks)[number], key: string, name: string, parent?: string) => {
+      const mine = entries.filter((e) => e.taskId === t.id).sort((a, b) => b.date.localeCompare(a.date))
+      const open = mine.find((e) => e.status === 'todo')
+      const day = open?.date ?? (t.status === 'done' ? t.doneDate : undefined)
+      return {
+        key,
+        name,
+        parent,
+        info:
+          t.status === 'done'
+            ? `faite le ${dayShort(t.doneDate ?? '')}`
+            : t.status === 'deleted'
+              ? 'supprimée'
+              : open
+                ? dayLabel(open.date, today).toLowerCase()
+                : 'en réserve',
+        open: () => {
+          if (day) goDay(day, t.id)
+          else if (t.status === 'todo') {
+            setQ('')
+            setTab('reserve')
+            setHighlight(t.id)
+          } else setSheet({ type: 'task', taskId: t.id })
+        },
+      }
+    }
+    const routineResult = (r: (typeof allRoutines)[number], key: string, name: string, parent?: string) => {
+      const todays = entries.some((e) => e.routineId === r.id && e.date === today)
+      return {
+        key,
+        name,
+        parent,
+        info: r.archivedAt ? 'routine archivée' : todays ? "routine · aujourd'hui" : 'routine',
+        open: () => (todays ? goDay(today, r.id) : setSheet({ type: 'routine', routineId: r.id })),
+      }
+    }
     return [
-      ...tasks.map((t) => {
-        const mine = entries.filter((e) => e.taskId === t.id).sort((a, b) => b.date.localeCompare(a.date))
-        const open = mine.find((e) => e.status === 'todo')
-        const day = open?.date ?? (t.status === 'done' ? t.doneDate : undefined)
-        return {
-          key: t.id,
-          name: t.name,
-          info:
-            t.status === 'done'
-              ? `faite le ${dayShort(t.doneDate ?? '')}`
-              : t.status === 'deleted'
-                ? 'supprimée'
-                : open
-                  ? dayLabel(open.date, today).toLowerCase()
-                  : 'en réserve',
-          open: () => {
-            if (day) goDay(day, t.id)
-            else if (t.status === 'todo') {
-              setQ('')
-              setTab('reserve')
-              setHighlight(t.id)
-            } else setSheet({ type: 'task', taskId: t.id })
-          },
-        }
-      }),
-      ...routines.map((r) => {
-        const todays = entries.some((e) => e.routineId === r.id && e.date === today)
-        return {
-          key: r.id,
-          name: r.name,
-          info: r.archivedAt ? 'routine archivée' : todays ? "routine · aujourd'hui" : 'routine',
-          open: () => (todays ? goDay(today, r.id) : setSheet({ type: 'routine', routineId: r.id })),
-        }
-      }),
+      ...tasks.map((t) => taskResult(t, t.id, t.name)),
+      ...routines.map((r) => routineResult(r, r.id, r.name)),
+      ...subHits.map((h, i) => taskResult(h.task, `${h.task.id}|s${i}`, h.step, h.task.name)),
+      ...stepHits.map((h) => routineResult(h.routine, `${h.routine.id}|${h.id}`, h.step, h.routine.name)),
     ].slice(0, 30)
   }, [q, today])
 
@@ -73,7 +90,7 @@ function Search() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Rechercher une tâche ou une routine"
+          placeholder="Rechercher une tâche, une étape, une routine"
           className={`${inputClass} pl-10`}
           type="search"
           enterKeyHint="search"
@@ -84,7 +101,10 @@ function Search() {
           {results.map((r) => (
             <li key={r.key}>
               <button type="button" className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left active:bg-bg" onClick={r.open}>
-                <span className="min-w-0 truncate text-[15px]">{r.name}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[15px]">{r.name}</span>
+                  {r.parent && <span className="block truncate text-xs text-accent">Étape de « {r.parent} »</span>}
+                </span>
                 <span className="shrink-0 text-xs text-muted">{r.info}</span>
               </button>
             </li>
