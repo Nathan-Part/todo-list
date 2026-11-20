@@ -3,7 +3,8 @@ import { CategoryChips, TimeRangeInput, rangeToMs } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnPrimary, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addSession, addUnplanned } from '../domain/actions'
-import { dayKeyOf } from '../domain/dates'
+import { naturalDayOf } from '../domain/dates'
+import type { DayKey } from '../domain/types'
 import { formatSec, timeOfDay } from '../lib/format'
 import { useCategories, useDayItems } from '../lib/hooks'
 import { useNav } from '../lib/nav'
@@ -15,14 +16,25 @@ const QUICK = ['Pause', 'Repas', 'Trajet', 'Téléphone', 'Imprévu']
 const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
 
 /** Combler un trou de la journée : noter ce qu'on faisait vraiment à ce moment-là. */
-export function GapSheet({ startAt, endAt, onClose }: { startAt: number; endAt: number; onClose: () => void }) {
+export function GapSheet({
+  startAt,
+  endAt,
+  day: dayProp,
+  onClose,
+}: {
+  startAt: number
+  endAt: number
+  /** Journée du résumé (une journée peut finir après minuit). */
+  day?: DayKey
+  onClose: () => void
+}) {
   const { active: categories } = useCategories()
   const toast = useToast()
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState<string | undefined>()
   const [start, setStart] = useState(timeOfDay(startAt))
   const [end, setEnd] = useState(timeOfDay(endAt))
-  const day = dayKeyOf(startAt)
+  const day = dayProp ?? naturalDayOf(startAt)
   const range = rangeToMs(day, start, end)
   const { today } = useNav()
   const items = useDayItems(day, today)
@@ -45,7 +57,7 @@ export function GapSheet({ startAt, endAt, onClose }: { startAt: number; endAt: 
     if (!name.trim()) return
     await addUnplanned(
       db,
-      { name, categoryId, durationMin: (range.endAt - range.startAt) / 60_000, startAt: range.startAt, endAt: range.endAt },
+      { name, categoryId, durationMin: (range.endAt - range.startAt) / 60_000, startAt: range.startAt, endAt: range.endAt, day },
       Date.now(),
     )
     toast({ text: 'Noté dans ta journée', duration: 2500 })

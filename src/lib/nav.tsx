@@ -12,7 +12,7 @@ export type SheetState =
   | { type: 'review' }
   | { type: 'settings' }
   | { type: 'versions' }
-  | { type: 'gap'; startAt: number; endAt: number }
+  | { type: 'gap'; startAt: number; endAt: number; day?: DayKey }
   | { type: 'dayLine'; entryId: string; sessionId?: string; subtaskId?: string }
   | { type: 'catchUp'; entryId: string }
   | { type: 'hourly'; day: DayKey }

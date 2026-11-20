@@ -204,20 +204,29 @@ describe('bascule de jour', () => {
     expect(await absenceToConfirm(db, at(THU))).not.toBeNull() // mardi et mercredi
   })
 
-  it('un chrono en cours à minuit garde son passage jusqu\'à l\'arrêt (RG-04)', async () => {
+  it('un chrono en cours au changement de jour garde son passage jusqu\'à l\'arrêt (RG-04)', async () => {
     await runRollover(db, at(MON))
     const id = await addTask(db, { name: 'Étudier', plan: MON }, at(MON))
     await startTimer(db, taskEntryId(id, MON), at(MON, 23, 30))
-    await runRollover(db, at(TUE, 0, 30))
+    await runRollover(db, at(TUE, 5, 30))
     expect((await db.entries.get(taskEntryId(id, MON)))!.status).toBe('todo')
     expect((await db.tasks.get(id))!.needsReview).toBe(false)
 
-    await pauseTimer(db, at(TUE, 0, 45))
-    await runRollover(db, at(TUE, 0, 46))
+    await pauseTimer(db, at(TUE, 5, 45))
+    await runRollover(db, at(TUE, 5, 46))
     expect((await db.entries.get(taskEntryId(id, MON)))!.status).toBe('not_done')
     const s = (await db.sessions.toArray())[0]
-    expect(s.durationSec).toBe(75 * 60)
+    expect(s.durationSec).toBe(375 * 60)
     expect(s.date).toBe(MON) // le temps est compté sur le jour de départ
+  })
+
+  it('à 2 h du matin, sans « Je vais dormir », on est encore la veille', async () => {
+    await runRollover(db, at(MON))
+    const id = await addTask(db, { name: 'Réviser', plan: MON }, at(MON))
+    await runRollover(db, at(TUE, 2))
+    expect((await db.entries.get(taskEntryId(id, MON)))!.status).toBe('todo')
+    await completeTask(db, id, at(TUE, 2, 10))
+    expect((await db.tasks.get(id))!.doneDate).toBe(MON)
   })
 
   it('si la date du téléphone recule, rien n\'est rouvert ni dupliqué (RG-112)', async () => {

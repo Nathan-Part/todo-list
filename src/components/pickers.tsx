@@ -20,7 +20,7 @@ import {
   pauseTimer,
   startTimer,
 } from '../domain/actions'
-import { diffDays } from '../domain/dates'
+import { DAY_START_HOUR, diffDays } from '../domain/dates'
 import { type TimeStats, deviationPct, spreadLabel, trendLabel } from '../domain/insights'
 import type { Category, DayKey, Session, Subtask } from '../domain/types'
 import { dayShort, formatMin, formatSec, timeOfDay } from '../lib/format'
@@ -196,14 +196,18 @@ export function WeekdayToggles({ value, onChange }: { value: number[]; onChange:
   )
 }
 
-/** « 09:15 » + jour → instant ; une fin avant le début passe au lendemain. */
+/**
+ * « 09:15 » + jour → instant ; une fin avant le début passe au lendemain.
+ * La journée va jusqu'à 5 h du matin : « 01:30 » sur la journée de lundi, c'est mardi à 1 h 30.
+ */
 export function rangeToMs(day: DayKey, start: string, end: string): { startAt: number; endAt: number } | null {
   if (!start || !end) return null
   const [y, m, d] = day.split('-').map(Number)
   const [sh, sm] = start.split(':').map(Number)
   const [eh, em] = end.split(':').map(Number)
-  const startAt = new Date(y, m - 1, d, sh, sm).getTime()
-  let endAt = new Date(y, m - 1, d, eh, em).getTime()
+  const night = sh < DAY_START_HOUR ? 1 : 0
+  const startAt = new Date(y, m - 1, d + night, sh, sm).getTime()
+  let endAt = new Date(y, m - 1, d + night, eh, em).getTime()
   if (endAt <= startAt) endAt += 86_400_000
   return { startAt, endAt }
 }

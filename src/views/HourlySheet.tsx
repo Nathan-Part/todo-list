@@ -46,7 +46,12 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
   )
 
   // heures proposées : toute la journée, prolongée après minuit si tu as travaillé tard
-  const lastEnd = blocks.reduce((m, b) => Math.max(m, b.end), 0)
+  // heure en cours, comptée depuis le début de la journée (25 = 1 h du matin, la journée n'étant pas finie)
+  const nowHour = day === today ? Math.floor((now - hourStart(day, 0)) / HOUR) : -1
+  const lastEnd = Math.max(
+    blocks.reduce((m, b) => Math.max(m, b.end), 0),
+    nowHour >= 24 ? now : 0,
+  )
   const extra = lastEnd > hourStart(day, 24) ? Math.min(6, Math.ceil((lastEnd - hourStart(day, 24)) / HOUR)) : 0
   const hours = Array.from({ length: 24 + extra }, (_, h) => h)
   const activeHours = new Set(
@@ -54,7 +59,7 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
   )
 
   const [hour, setHour] = useState(() => {
-    if (day === today) return new Date().getHours()
+    if (day === today) return Math.max(0, Math.floor((Date.now() - hourStart(day, 0)) / HOUR))
     const withActivity = hours.filter((h) => activeHours.has(h))
     return withActivity.length ? withActivity[withActivity.length - 1] : 9
   })
@@ -125,7 +130,7 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
       <div ref={stripRef} className="-mx-5 mt-3 flex gap-1.5 overflow-x-auto px-5 pb-2 [scrollbar-width:none]">
         {hours.map((h) => {
           const selected = h === hour
-          const isNow = day === today && h === new Date(now).getHours()
+          const isNow = h === nowHour
           return (
             <button
               key={h}

@@ -1,6 +1,6 @@
 import { type AppDB, META, getMeta, newId, setMeta } from '../db'
 import { generateOccurrences } from './actions'
-import { addDays, dayKeyOf, daysBetween, diffDays } from './dates'
+import { addDays, daysBetween, diffDays, todayOf } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
 import type { DayKey, Entry } from './types'
 
@@ -42,7 +42,7 @@ async function closeOverdue(d: AppDB, e: Entry, nowMs: number) {
  * Idempotente et rejouable : on peut l'appeler à chaque ouverture sans rien dupliquer (RG-100/102).
  */
 export async function runRollover(d: AppDB, nowMs: number, opts: RolloverOptions = {}): Promise<void> {
-  const today = dayKeyOf(nowMs)
+  const today = todayOf(nowMs)
   await d.transaction('rw', d.tables, async () => {
     // 1) Clôture des passages en retard. Un chrono en cours garde son passage (RG-04).
     const overdue = await d.entries
@@ -80,7 +80,7 @@ export async function absenceToConfirm(
   d: AppDB,
   nowMs: number,
 ): Promise<{ from: DayKey; to: DayKey; days: number } | null> {
-  const today = dayKeyOf(nowMs)
+  const today = todayOf(nowMs)
   const last = await getMeta<DayKey | undefined>(d, META.lastGenerated, undefined)
   if (!last) return null
   const from = addDays(last, 1)

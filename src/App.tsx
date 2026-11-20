@@ -8,12 +8,12 @@ import { DayLineSheet } from './views/DayLineSheet'
 import { FocusScreen, MiniPlayer } from './components/Timer'
 import { Icon, type IconName, btnGhost, btnPrimary } from './components/ui'
 import { META, db, getMeta } from './db'
+import { type Sleep, getSleep, setSleep } from './domain/dates'
 import { copiesDb, takeDailyCopy } from './domain/copies'
 import { useToast } from './lib/toast'
 import { absenceToConfirm, runRollover } from './domain/rollover'
 import { dayShort, plural } from './lib/format'
 import { useReserve, useRunning, useRunningSession, useToday } from './lib/hooks'
-import { dayKeyOf } from './domain/dates'
 import { NavContext, type SheetState, type Tab } from './lib/nav'
 import { AddSheet } from './views/AddSheet'
 import { BilanView } from './views/BilanView'
@@ -161,6 +161,13 @@ function Shell() {
     prevRunning.current = running?.id
   }, [running])
 
+  // « Je vais dormir » est aussi gardé dans la base : on le reprend s'il est plus récent
+  useEffect(() => {
+    void getMeta<Sleep | null>(db, 'sleep', null).then((s) => {
+      if (s && (!getSleep() || s.at > getSleep()!.at)) setSleep(s)
+    })
+  }, [])
+
   // demande un stockage durable (limite l'effacement par iOS)
   useEffect(() => {
     void navigator.storage?.persist?.()
@@ -278,7 +285,7 @@ function Shell() {
       {sheet?.type === 'review' && <ReviewSheet onClose={close} />}
       {sheet?.type === 'settings' && <SettingsSheet onClose={close} />}
       {sheet?.type === 'versions' && <VersionsSheet onClose={close} />}
-      {sheet?.type === 'gap' && <GapSheet key={sheet.startAt} startAt={sheet.startAt} endAt={sheet.endAt} onClose={close} />}
+      {sheet?.type === 'gap' && <GapSheet key={sheet.startAt} startAt={sheet.startAt} endAt={sheet.endAt} day={sheet.day} onClose={close} />}
       {sheet?.type === 'dayLine' && (
         <DayLineSheet
           key={sheet.entryId + (sheet.sessionId ?? '') + (sheet.subtaskId ?? '')}
@@ -305,7 +312,7 @@ function Shell() {
       {runningItem &&
         okTimer !== runningItem.session.id &&
         runningItem.session.startAt !== undefined &&
-        (Date.now() - runningItem.session.startAt > 3 * 3_600_000 || dayKeyOf(runningItem.session.startAt) < today) && (
+        (Date.now() - runningItem.session.startAt > 3 * 3_600_000 || runningItem.session.date < today) && (
           <ForgottenTimer
             session={runningItem.session}
             name={runningItem.item.name}

@@ -292,7 +292,7 @@ function DaySummary() {
               <li key={g.start}>
                 <button
                   type="button"
-                  onClick={() => setSheet({ type: 'gap', startAt: g.start, endAt: g.end })}
+                  onClick={() => setSheet({ type: 'gap', startAt: g.start, endAt: g.end, day })}
                   className={`flex w-full items-start gap-3 rounded-xl px-3 py-2 text-left ${
                     g.kind === 'long' ? 'bg-warn-soft' : 'bg-bg'
                   }`}

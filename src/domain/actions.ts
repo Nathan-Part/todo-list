@@ -1,5 +1,5 @@
 import { type AppDB, newId } from '../db'
-import { addDays, dayKeyOf, diffDays } from './dates'
+import { addDays, diffDays, todayOf } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
 import type { Category, DayKey, Entry, Frequency, Pause, Routine, RoutineStep, Session, Task } from './types'
 
@@ -114,7 +114,7 @@ export interface NewTask {
 
 export function addTask(d: AppDB, input: NewTask, nowMs: number): Promise<string> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const task: Task = {
       id: newId(),
       name: input.name.trim(),
@@ -147,12 +147,12 @@ export async function updateTask(d: AppDB, taskId: string, changes: TaskChanges)
 /** Enregistre après coup une tâche non prévue déjà faite (RG-17). */
 export function addUnplanned(
   d: AppDB,
-  input: { name: string; durationMin: number; categoryId?: string; startAt?: number; endAt?: number },
+  input: { name: string; durationMin: number; categoryId?: string; startAt?: number; endAt?: number; day?: DayKey },
   nowMs: number,
 ): Promise<string> {
   return tx(d, async () => {
     // avec des heures précises, l'imprévu est rangé sur le jour où il a eu lieu
-    const today = dayKeyOf(input.startAt ?? nowMs)
+    const today = input.day ?? todayOf(input.startAt ?? nowMs)
     const task: Task = {
       id: newId(),
       name: input.name.trim(),
@@ -199,7 +199,7 @@ export function addUnplanned(
  */
 export function completeEntry(d: AppDB, entryId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const entry = await d.entries.get(entryId)
     if (!entry || entry.status !== 'todo') return
 
@@ -254,7 +254,7 @@ export function completeTask(d: AppDB, taskId: string, nowMs: number): Promise<v
     const task = await d.tasks.get(taskId)
     if (!task || task.status !== 'todo') return
     const open = await d.entries.where('[taskId+status]').equals([taskId, 'todo']).first()
-    const entry = open ?? (await ensureTaskEntry(d, task, dayKeyOf(nowMs)))
+    const entry = open ?? (await ensureTaskEntry(d, task, todayOf(nowMs)))
     await completeEntry(d, entry.id, nowMs)
   })
 }
@@ -262,7 +262,7 @@ export function completeTask(d: AppDB, taskId: string, nowMs: number): Promise<v
 /** Rouvre un passage terminé (RG-15). */
 export function reopenEntry(d: AppDB, entryId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const e = await d.entries.get(entryId)
     if (!e || e.status !== 'done') return
     // le temps saisi à la main (« de… à… », durée) est retiré : il sera redemandé à la prochaine validation.
@@ -355,7 +355,7 @@ function shiftDays(ms: number, days: number): number {
  */
 export function moveDoneTask(d: AppDB, entryId: string, target: DayKey, nowMs: number): Promise<string | undefined> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const e = await d.entries.get(entryId)
     if (!e || e.kind !== 'task' || e.status !== 'done' || target > today) return undefined
     if (target === e.date) return e.id
@@ -406,7 +406,7 @@ export function postponeEntry(
   nowMs: number,
 ): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const entry = await d.entries.get(entryId)
     if (!entry || entry.status !== 'todo') return
     if (target !== 'reserve' && target < today) throw new Error('Impossible de planifier dans le passé')
@@ -477,7 +477,7 @@ export function postponeEntry(
 /** Replanifie une tâche (en réserve ou déjà planifiée) sur un jour, ou la renvoie en réserve. */
 export function planTask(d: AppDB, taskId: string, target: DayKey | 'reserve', nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const open = await d.entries.where('[taskId+status]').equals([taskId, 'todo']).first()
     if (open) return postponeEntry(d, open.id, target, nowMs)
     const task = await d.tasks.get(taskId)
@@ -511,7 +511,7 @@ export function unskipEntry(d: AppDB, entryId: string, nowMs: number): Promise<v
   return tx(d, async () => {
     const e = await d.entries.get(entryId)
     if (!e || e.status !== 'skipped') return
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     await d.entries.update(e.id, e.date >= today ? { status: 'todo', closedAt: undefined } : { status: 'not_done', closedAt: nowMs })
   })
 }
@@ -545,7 +545,7 @@ export function restoreTask(d: AppDB, snap: TaskSnapshot): Promise<void> {
 /** Récupère une tâche supprimée dont l'historique avait été gardé : elle revient à faire. */
 export function undeleteTask(d: AppDB, taskId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const task = await d.tasks.get(taskId)
     if (!task || task.status !== 'deleted') return
     const deleted = (await d.entries.where('taskId').equals(taskId).toArray())
@@ -836,7 +836,7 @@ export function deleteSubtask(d: AppDB, id: string, nowMs: number): Promise<void
  */
 export function toggleSubtask(d: AppDB, id: string, nowMs: number): Promise<boolean> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const sub = await d.subtasks.get(id)
     if (!sub) return false
     const running = await d.sessions.where('running').equals(1).first()
@@ -983,7 +983,7 @@ export async function generateOccurrences(
 export function createRoutine(d: AppDB, raw: RoutineInput, nowMs: number): Promise<string> {
   const input = normalizeSteps(raw)
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const all = await d.routines.toArray()
     const routine: Routine = {
       id: newId(),
@@ -1015,7 +1015,7 @@ export type RoutineChanges = Partial<
 export function updateRoutine(d: AppDB, id: string, raw: RoutineChanges, nowMs: number): Promise<void> {
   const changes = normalizeSteps(raw)
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     await d.routines.update(id, changes)
     const r = await d.routines.get(id)
     if (!r) return
@@ -1071,7 +1071,7 @@ export function deleteRoutine(d: AppDB, id: string): Promise<void> {
 /** Réactive une routine archivée : elle revient à partir d'aujourd'hui. */
 export function unarchiveRoutine(d: AppDB, id: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     await d.routines.update(id, { archivedAt: undefined, endDate: undefined })
     await generateOccurrences(d, today, today, today, nowMs)
   })
@@ -1083,7 +1083,7 @@ export function unarchiveRoutine(d: AppDB, id: string, nowMs: number): Promise<v
  */
 export function reorderRoutines(d: AppDB, orderedIds: string[], nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     let pos = 1000
     for (const id of orderedIds) {
       await d.routines.update(id, { position: pos })
@@ -1100,7 +1100,7 @@ export function reorderRoutines(d: AppDB, orderedIds: string[], nowMs: number): 
 /** Archive la routine : plus aucune occurrence, historique conservé (RG-39). */
 export function archiveRoutine(d: AppDB, id: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     await d.routines.update(id, { archivedAt: nowMs, endDate: addDays(today, -1) })
     const open = await d.entries
       .where('routineId')
@@ -1118,7 +1118,7 @@ export function pauseRoutines(
   nowMs: number,
 ): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const pause: Pause = { id: newId(), origin: 'manual', ...input }
     await d.pauses.add(pause)
     const open = await d.entries
@@ -1140,7 +1140,7 @@ export function pauseRoutines(
 /** Reprise : les occurrences redeviennent normales dès aujourd'hui. */
 export function endPause(d: AppDB, pauseId: string, nowMs: number): Promise<void> {
   return tx(d, async () => {
-    const today = dayKeyOf(nowMs)
+    const today = todayOf(nowMs)
     const p = await d.pauses.get(pauseId)
     if (!p) return
     if (p.fromDate >= today) await d.pauses.delete(pauseId)

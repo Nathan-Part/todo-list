@@ -13,14 +13,15 @@ import { ItemRow, type RowMode } from '../components/ItemRow'
 import { WeekStrip } from '../components/WeekStrip'
 import { Icon } from '../components/ui'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { db, getMeta } from '../db'
+import { db, getMeta, setMeta } from '../db'
 import { reorderDay } from '../domain/actions'
-import { addDays, weekdayIndex } from '../domain/dates'
+import { addDays, naturalDayOf, setSleep, weekdayIndex } from '../domain/dates'
 import { type DayItem, computeDayStats } from '../domain/stats'
 import { dayLabel, dayTitle, formatMin, formatSec, plural } from '../lib/format'
 import { useCapacity, useCategories, useDayItems, useNow, useReserve, useRunningSession } from '../lib/hooks'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
+import { useToast } from '../lib/toast'
 
 type RowProps = React.ComponentProps<typeof ItemRow>
 
@@ -45,6 +46,51 @@ function SortableRow(props: Omit<RowProps, 'rootRef' | 'rootProps' | 'dragging'>
         },
       }}
     />
+  )
+}
+
+/**
+ * « Je vais dormir » : la journée ne change qu'à cet appui (ou toute seule à 5 h du matin).
+ * Visible le soir, à partir de 20 h, et la nuit tant que la journée n'est pas close.
+ */
+function SleepButton({ now }: { now: number }) {
+  const { today } = useNav()
+  const toast = useToast()
+  const [confirm, setConfirm] = useState(false)
+  const hour = new Date(now).getHours()
+  const evening = hour >= 20 || hour < 5
+  if (!evening || naturalDayOf(now) !== today) return null
+  const sleep = async () => {
+    const s = { day: today, at: Date.now() }
+    setSleep(s)
+    await setMeta(db, 'sleep', s)
+    toast({ text: 'Bonne nuit ! Ta journée est terminée.', duration: 3000 })
+  }
+  return (
+    <div className="mt-3 rounded-2xl bg-ink px-4 py-3 text-bg">
+      {confirm ? (
+        <>
+          <div className="text-sm font-semibold">Terminer ta journée ?</div>
+          <p className="mt-0.5 text-xs opacity-75">
+            On passe à demain. Ce qui n'est pas fait part dans la réserve, comme d'habitude.
+          </p>
+          <div className="mt-2.5 flex gap-2">
+            <button type="button" onClick={() => void sleep()} className="flex-1 rounded-xl bg-accent py-2 text-sm font-semibold text-on-accent">
+              Bonne nuit
+            </button>
+            <button type="button" onClick={() => setConfirm(false)} className="rounded-xl bg-bg/15 px-4 py-2 text-sm font-medium">
+              Pas encore
+            </button>
+          </div>
+        </>
+      ) : (
+        <button type="button" onClick={() => setConfirm(true)} className="flex w-full items-center gap-3 text-left">
+          <Icon name="moon" className="size-5 shrink-0" />
+          <span className="flex-1 text-sm font-semibold">Je vais dormir</span>
+          <span className="text-xs opacity-75">termine la journée</span>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -136,7 +182,8 @@ function Timeline({ items, day, now }: { items: DayItem[]; day: string; now: num
   )
   if (segs.length === 0) return null
   const from = Math.max(0, Math.min(7, Math.floor(Math.min(...segs.map((s) => s.start)))))
-  const to = Math.min(24, Math.max(22, Math.ceil(Math.max(...segs.map((s) => s.end)))))
+  // la journée peut finir après minuit (jusqu'à 5 h) : la frise suit
+  const to = Math.min(29, Math.max(22, Math.ceil(Math.max(...segs.map((s) => s.end)))))
   const pct = (h: number) => `${((Math.min(to, Math.max(from, h)) - from) / (to - from)) * 100}%`
   return (
     <div className="mt-3">
@@ -153,8 +200,8 @@ function Timeline({ items, day, now }: { items: DayItem[]; day: string; now: num
       </div>
       <div className="mt-0.5 flex justify-between text-[10px] tabular text-muted">
         <span>{from} h</span>
-        <span>{Math.round((from + to) / 2)} h</span>
-        <span>{to} h</span>
+        <span>{Math.round((from + to) / 2) % 24} h</span>
+        <span>{to % 24} h</span>
       </div>
     </div>
   )
@@ -371,6 +418,7 @@ export function DayView() {
         <WeekStrip selected={selectedDay} today={today} onSelect={setSelectedDay} />
       </div>
 
+      {mode === 'today' && <SleepButton now={now} />}
       {mode === 'today' && <Banner />}
       {mode === 'today' && <ExportReminder />}
       {loaded && items.length > 0 && <KeyFigures items={items} mode={mode} now={now} day={selectedDay} />}

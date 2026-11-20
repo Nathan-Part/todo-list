@@ -1,6 +1,6 @@
 import type { AppDB } from '../db'
 import { parseRoutineEntryId, routineEntryId } from './actions'
-import { addDays, dayKeyOf, daysBetween, diffDays, weekdayIndex } from './dates'
+import { addDays, daysBetween, diffDays, naturalDayOf, weekdayIndex } from './dates'
 import { isPaused, isRoutineScheduledOn } from './routines'
 import { type TimeStats, timeStats } from './insights'
 import { type DayItem, computeDayStats, regularity } from './stats'
@@ -348,7 +348,7 @@ export async function loadRoutineDetail(d: AppDB, routineId: string, today: DayK
     const est = e.estimateMinSnapshot ?? routine.estimateMin
     if (est && (secOf.get(e.id) ?? 0) > est * 60 * 1.1) return true
     const began = firstStart.get(e.id) ?? e.doneAt
-    if (routine.time && began !== undefined && dayKeyOf(began) === e.date) {
+    if (routine.time && began !== undefined && naturalDayOf(began) === e.date) {
       const d0 = new Date(began)
       const hhmm = `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`
       if (hhmm > routine.time) return true

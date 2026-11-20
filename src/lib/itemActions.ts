@@ -20,7 +20,7 @@ import {
   toggleRoutineStep,
   toggleSubtask,
 } from '../domain/actions'
-import { dayKeyOf } from '../domain/dates'
+import { todayOf } from '../domain/dates'
 import { completionFeedback } from '../domain/insights'
 import { type DayItem, liveSpentSec } from '../domain/stats'
 import type { Task } from '../domain/types'
@@ -36,7 +36,7 @@ export function useItemActions() {
   const complete = useCallback(
     async (item: DayItem) => {
       const nowMs = Date.now()
-      const today = dayKeyOf(nowMs)
+      const today = todayOf(nowMs)
       const realSec = liveSpentSec(item, nowMs)
       await completeEntry(db, item.id, nowMs)
       // étapes restantes cochées avec la tâche entière : elles ont été faites en même temps
@@ -64,7 +64,7 @@ export function useItemActions() {
   const completeTaskById = useCallback(
     async (task: Task, hasSessions: boolean, spentSec = 0) => {
       const nowMs = Date.now()
-      const today = dayKeyOf(nowMs)
+      const today = todayOf(nowMs)
       await completeTask(db, task.id, nowMs)
       if (hasSessions) {
         const msg = completionFeedback(spentSec, task.estimateMin)
@@ -168,7 +168,7 @@ export function useItemActions() {
       step: { id: string; name: string; estimateMin?: number; status: 'todo' | 'done' },
     ) => {
       const nowMs = Date.now()
-      const today = dayKeyOf(nowMs)
+      const today = todayOf(nowMs)
       const checking = step.status === 'todo'
       const finished =
         target.kind === 'routine' && target.entryId

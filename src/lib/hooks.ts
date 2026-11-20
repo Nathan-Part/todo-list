@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { DEFAULT_CAPACITY, META, db, getMeta } from '../db'
-import { dayKeyOf } from '../domain/dates'
+import { getSleep, subscribeSleep, todayOf } from '../domain/dates'
 import { loadDayItems, loadItem, loadLoads, loadReserve } from '../domain/queries'
 import type { DayItem } from '../domain/stats'
 import type { Category, DayKey } from '../domain/types'
@@ -26,8 +26,12 @@ export function useNow(intervalMs = 1000): number {
   return now
 }
 
+/** Jour en cours : change avec « Je vais dormir », ou tout seul à 5 h du matin. */
 export function useToday(): DayKey {
-  return dayKeyOf(useNow(20_000))
+  const now = useNow(20_000)
+  const sleep = useSyncExternalStore(subscribeSleep, getSleep)
+  // `sleep` fait partie du calcul : un appui sur « Je vais dormir » change le jour tout de suite
+  return useMemo(() => todayOf(Math.max(now, sleep?.at ?? 0)), [now, sleep])
 }
 
 export function useDayItems(date: DayKey, today: DayKey): DayItem[] | undefined {
