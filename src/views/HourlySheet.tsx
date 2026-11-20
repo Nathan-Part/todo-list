@@ -53,13 +53,16 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
     nowHour >= 24 ? now : 0,
   )
   const extra = lastEnd > hourStart(day, 24) ? Math.min(6, Math.ceil((lastEnd - hourStart(day, 24)) / HOUR)) : 0
-  const hours = Array.from({ length: 24 + extra }, (_, h) => h)
+  // journée close tôt par « Je vais dormir » : ce qui est fait ensuite, la veille au soir, reste visible
+  const firstStart = Math.min(blocks.reduce((m, b) => Math.min(m, b.start), Infinity), nowHour < 0 ? now : Infinity)
+  const early = firstStart < hourStart(day, 0) ? Math.min(6, Math.ceil((hourStart(day, 0) - firstStart) / HOUR)) : 0
+  const hours = Array.from({ length: early + 24 + extra }, (_, i) => i - early)
   const activeHours = new Set(
     hours.filter((h) => blocks.some((b) => b.start < hourStart(day, h + 1) && b.end > hourStart(day, h))),
   )
 
   const [hour, setHour] = useState(() => {
-    if (day === today) return Math.max(0, Math.floor((Date.now() - hourStart(day, 0)) / HOUR))
+    if (day === today) return Math.max(-6, Math.floor((Date.now() - hourStart(day, 0)) / HOUR))
     const withActivity = hours.filter((h) => activeHours.has(h))
     return withActivity.length ? withActivity[withActivity.length - 1] : 9
   })
@@ -119,7 +122,8 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
   }
   const laneCount = Math.max(1, lanes.length)
 
-  const hourLabel = (h: number) => `${h % 24} h`
+  const clock = (h: number) => ((h % 24) + 24) % 24
+  const hourLabel = (h: number) => `${clock(h)} h`
   const color = (i: DayItem) => (i.categoryId && byId.get(i.categoryId)?.color) || 'var(--accent)'
 
   return (
@@ -138,7 +142,7 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
               data-hour={h}
               onClick={() => setHour(h)}
               aria-pressed={selected}
-              aria-label={`${hourLabel(h)}${h >= 24 ? ' (après minuit)' : ''}`}
+              aria-label={`${hourLabel(h)}${h >= 24 ? ' (après minuit)' : h < 0 ? ' (la veille au soir)' : ''}`}
               className={`flex w-12 shrink-0 flex-col items-center gap-1 rounded-2xl py-2 text-sm font-semibold tabular transition ${
                 selected ? 'bg-accent text-on-accent shadow' : isNow ? 'bg-accent-soft text-accent' : 'bg-bg text-ink'
               }`}
@@ -219,7 +223,7 @@ export function HourlySheet({ day, onClose }: { day: DayKey; onClose: () => void
         </div>
         <div className="mt-1 flex justify-between px-0.5 text-[10px] font-medium tabular text-muted">
           {[0, 15, 30, 45, 60].map((m) => (
-            <span key={m}>{m === 60 ? hourLabel(hour + 1) : `${hour % 24}:${String(m).padStart(2, '0')}`}</span>
+            <span key={m}>{m === 60 ? hourLabel(hour + 1) : `${clock(hour)}:${String(m).padStart(2, '0')}`}</span>
           ))}
         </div>
       </div>

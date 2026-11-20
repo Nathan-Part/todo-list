@@ -790,6 +790,12 @@ export function addSubtask(
     // une sous-tâche ajoutée à une tâche faite la rouvre
     const task = await d.tasks.get(taskId)
     if (task?.status === 'done') {
+      // les étapes déjà faites le restent : seule la nouvelle est à faire
+      await d.subtasks
+        .where('taskId')
+        .equals(taskId)
+        .filter((s) => !!s.withTask)
+        .modify({ withTask: undefined })
       const done = (await d.entries.where('taskId').equals(taskId).toArray()).find((e) => e.status === 'done')
       if (done) await reopenEntry(d, done.id, Date.now())
     }
