@@ -116,6 +116,35 @@ export function EstimateChips({
   )
 }
 
+/** Où se fait la tâche : partout (avec le téléphone) ou seulement sur place. */
+export function PlaceChips({ value, onChange }: { value: boolean; onChange: (onSite: boolean) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      <Chip active={!value} onClick={() => onChange(false)}>
+        <span className="inline-flex items-center gap-1.5">
+          <Icon name="phone" className="size-3.5" />
+          Partout
+        </span>
+      </Chip>
+      <Chip active={value} onClick={() => onChange(true)}>
+        <span className="inline-flex items-center gap-1.5">
+          <Icon name="home" className="size-3.5" />
+          Sur place
+        </span>
+      </Chip>
+    </div>
+  )
+}
+
+/** Petite maison à côté du nom : tâche à faire sur place. */
+export function OnSiteIcon({ className = 'size-3.5' }: { className?: string }) {
+  return (
+    <span role="img" aria-label="Sur place" title="Sur place" className="inline-flex shrink-0 text-warn">
+      <Icon name="home" className={className} strokeWidth={2.4} />
+    </span>
+  )
+}
+
 export function CategoryChips({
   value,
   onChange,

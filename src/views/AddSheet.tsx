@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { CategoryChips, EndDateField, EstimateChips, TimeField, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, EndDateField, EstimateChips, PlaceChips, TimeField, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnGhost, btnPrimary, inputBase, inputClass } from '../components/ui'
 import { db } from '../db'
 import { addTask, addUnplanned, createRoutine, taskEntryId } from '../domain/actions'
@@ -37,6 +37,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
   const [interval, setIntervalDays] = useState(2)
   const [endDate, setEndDate] = useState<DayKey | undefined>()
   const [time, setTime] = useState<string | undefined>()
+  const [onSite, setOnSite] = useState(false)
   const suggestion = useLiveQuery(() => suggestEstimate(db, name), [name])
   const [busy, setBusy] = useState(false)
 
@@ -68,6 +69,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             categoryId,
             note,
             time,
+            onSite,
             startDate: plan === 'reserve' ? today : day,
             endDate: endDate && endDate >= (plan === 'reserve' ? today : day) ? endDate : undefined,
           },
@@ -83,6 +85,7 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
             categoryId,
             note,
             time,
+            onSite,
             dueDate: dueDate || undefined,
             plan: plan === 'reserve' ? 'reserve' : day,
           },
@@ -193,6 +196,10 @@ export function AddSheet({ plan: initialPlan, onClose }: { plan?: DayKey | 'rese
           <TimeField value={time} onChange={setTime} />
         </Field>
       )}
+
+      <Field label="Où ?">
+        <PlaceChips value={onSite} onChange={setOnSite} />
+      </Field>
 
       <Field label="Catégorie">
         <CategoryChips value={categoryId} onChange={setCategoryId} categories={categories} />

@@ -17,6 +17,8 @@ export interface DayItem {
   /** Heure prévue « HH:MM ». */
   time?: string
   categoryId?: string
+  /** À faire sur place (pas faisable partout). */
+  onSite?: boolean
   unplanned: boolean
   /** Somme des sessions terminées, en secondes. */
   spentSec: number

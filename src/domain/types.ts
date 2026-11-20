@@ -24,6 +24,8 @@ export interface Task {
   /** Heure prévue « HH:MM », facultative. */
   time?: string
   note?: string
+  /** À faire sur place (maison, ordinateur…) ; absent = faisable partout, avec le téléphone. */
+  onSite?: boolean
   status: 'todo' | 'done' | 'deleted'
   /** Arrivée en réserve par le changement de jour, pas encore triée. */
   needsReview: boolean
@@ -60,6 +62,8 @@ export interface Routine {
   name: string
   /** Facultative : une occurrence non faite reste neutre (ni rouge, ni comptée). */
   optional?: boolean
+  /** À faire sur place ; absent = faisable partout. */
+  onSite?: boolean
   /** Étapes, dans l'ordre ; la durée de la routine est alors la somme des leurs. */
   steps?: RoutineStep[]
   categoryId?: string

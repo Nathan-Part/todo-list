@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
-import { CategoryChips, DurationInput, EndDateField, EstimateChips, TimeField, TimeInsight, WeekdayToggles } from '../components/pickers'
+import { CategoryChips, DurationInput, PlaceChips, EndDateField, EstimateChips, TimeField, TimeInsight, WeekdayToggles } from '../components/pickers'
 import { Chip, Field, Icon, Sheet, btnDanger, btnGhost, btnPrimary, btnSoft, inputBase, inputClass } from '../components/ui'
 import { db, newId } from '../db'
 import {
@@ -33,10 +33,11 @@ interface Form {
   endDate?: string
   time?: string
   optional: boolean
+  onSite: boolean
   steps: RoutineStep[]
 }
 
-const empty: Form = { name: '', kind: 'daily', weekdays: [0, 2, 4], interval: 2, note: '', optional: false, steps: [] }
+const empty: Form = { name: '', kind: 'daily', weekdays: [0, 2, 4], interval: 2, note: '', optional: false, onSite: false, steps: [] }
 
 function fromRoutine(r: Routine): Form {
   return {
@@ -50,6 +51,7 @@ function fromRoutine(r: Routine): Form {
     endDate: r.archivedAt ? undefined : r.endDate,
     time: r.time,
     optional: !!r.optional,
+    onSite: !!r.onSite,
     steps: r.steps ?? [],
   }
 }
@@ -98,6 +100,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           endDate: form.endDate,
           time: form.time,
           optional: form.optional,
+          onSite: form.onSite,
           steps: form.steps,
         },
         nowMs,
@@ -115,6 +118,7 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
           note: form.note.trim() || undefined,
           time: form.time,
           optional: form.optional || undefined,
+          onSite: form.onSite || undefined,
           steps: form.steps,
           ...(detail?.routine.archivedAt ? {} : { endDate: form.endDate }),
         },
@@ -218,6 +222,9 @@ export function RoutineSheet({ routineId, onClose }: { routineId: string | 'new'
         ) : (
           <EstimateChips value={form.estimate} onChange={(estimate) => set({ estimate })} />
         )}
+      </Field>
+      <Field label="Où ?">
+        <PlaceChips value={form.onSite} onChange={(onSite) => set({ onSite })} />
       </Field>
       <Field label="Catégorie">
         <CategoryChips value={form.categoryId} onChange={(categoryId) => set({ categoryId })} categories={categories} />
