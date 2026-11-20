@@ -15,6 +15,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.8',
+    date: '2026-11-20',
+    title: 'Je vais dormir, sur place ou partout, copies automatiques et activité horaire',
+    changes: [
+      'La journée change quand tu appuies sur « Je vais dormir » (le soir, en haut de la page Jour), ou toute seule à 5 h du matin.',
+      'Chaque tâche ou routine peut être « Sur place » (petite maison) ou « Partout », et l\'app fait chaque jour une copie de tes données, à restaurer dans les Réglages.',
+      'Sur une tâche découpée, « Finir l\'étape » termine l\'étape en cours et met le chrono en pause ; on peut ajouter des sous-tâches dès la création, noter une tâche faite « Hier », et voir le temps total sur plusieurs jours.',
+      'Nouveau : l\'activité heure par heure dans le Bilan, une alerte après 1 h sur une tâche sans durée, un menu des tâches pour remplir un trou, le déplacement d\'une tâche faite sur un autre jour, les routines faites rangées en bas, et la recherche qui trouve les sous-tâches.',
+    ],
+  },
+  {
     version: '1.7',
     date: '2026-11-17',
     title: 'Correction : anciennes tâches finies sans heures par étape',

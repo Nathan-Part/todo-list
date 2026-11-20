@@ -1,3 +1,4 @@
+import { CURRENT_VERSION } from '../changelog'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
 import { CapacityEditor } from '../components/CapacityEditor'
@@ -145,7 +146,7 @@ export function SettingsSheet({ onClose }: { onClose: () => void }) {
 
       <CopiesField onRestored={onClose} />
 
-      <div className="mt-8 text-center text-xs text-muted">Ma journée · version 0.1</div>
+      <div className="mt-8 text-center text-xs text-muted">Ma journée · version {CURRENT_VERSION}</div>
     </Sheet>
   )
 }
