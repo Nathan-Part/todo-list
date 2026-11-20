@@ -147,6 +147,9 @@ function DaySummary() {
   const shortTotal = shortGaps.reduce((n, g) => n + g.minutes, 0)
   const gapTotal = gaps.reduce((n, g) => n + g.minutes, 0)
   const timedIds = new Set(timed.map((t) => t.item.id))
+  // dernière ligne horaire de chaque tâche : c'est là qu'on affiche son total sur plusieurs jours
+  const lastTimed = new Map<string, number>()
+  timed.forEach((t, idx) => lastTimed.set(t.item.id, idx))
   // tâche finie sans horaire, ou dont les étapes cochées avec elle n'ont pas encore leurs heures
   const untimed = items.filter(
     (i) =>
@@ -226,6 +229,9 @@ function DaySummary() {
                       {t.item.name}
                       {t.item.status === 'done' && <Icon name="check" className="ml-1 inline size-3.5 text-good" strokeWidth={3} />}
                       {t.running && <span className="ml-1 text-xs text-accent">en cours</span>}
+                      {t.item.status === 'done' && !!t.item.otherDaysSec && lastTimed.get(t.item.id) === idx && (
+                        <span className="ml-1 text-xs text-muted">· {formatSec(t.item.spentSec + t.item.otherDaysSec)} au total</span>
+                      )}
                     </span>
                   )}
                   <span className="shrink-0 pt-0.5 text-xs tabular text-muted">{formatSec((t.end - t.start) / 1000)}</span>
@@ -257,6 +263,7 @@ function DaySummary() {
                 <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: (i.categoryId && byId.get(i.categoryId)?.color) || 'var(--muted)' }} />
                 <span className="min-w-0 flex-1 break-words text-sm leading-snug">
                   {i.name} <Icon name="check" className="inline size-3.5 text-good" strokeWidth={3} />
+                  {!!i.otherDaysSec && <span className="ml-1 text-xs text-muted">· {formatSec(i.spentSec + i.otherDaysSec)} au total</span>}
                 </span>
                 <span className="shrink-0 pt-0.5 text-xs tabular text-muted">{i.spentSec > 0 ? formatSec(i.spentSec) : 'durée ?'}</span>
               </button>

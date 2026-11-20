@@ -111,6 +111,9 @@ export function ItemRow({
       )
     }
   }
+  if (item.otherDaysSec && (isDone || isOpen)) {
+    meta.push(<span key="tot">{formatSec(spent + item.otherDaysSec)} au total</span>)
+  }
   if (item.kind === 'routine' && item.optional && isOpen) meta.push(<span key="opt" className="italic">facultative</span>)
   if (item.kind === 'routine' && item.routineEnd && isOpen && mode === 'today') {
     meta.push(

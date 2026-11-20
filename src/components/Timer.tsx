@@ -115,10 +115,11 @@ export function FocusScreen({ entryId, onClose }: { entryId: string; onClose: ()
         ) : (
           <div className="mt-3 text-sm text-warn">{currentSub ? "Pas de durée estimée pour cette étape" : 'Pas de durée estimée'}</div>
         )}
-        {subtasks.length > 0 && (
+        {(subtasks.length > 0 || !!item.otherDaysSec) && (
           <div className="mt-3 text-xs text-muted tabular">
-            Total {item.kind === 'routine' ? 'routine' : 'tâche'} : {formatClock(totalSpent)}
+            Total {item.kind === 'routine' ? 'routine' : 'tâche'} : {formatClock(totalSpent + (item.otherDaysSec ?? 0))}
             {item.estimateMin ? ` / ${formatMin(item.estimateMin)}` : ''}
+            {item.otherDaysSec ? ` · dont ${formatMin(Math.round(item.otherDaysSec / 60))} les autres jours` : ''}
           </div>
         )}
         {subtasks.length > 0 && (

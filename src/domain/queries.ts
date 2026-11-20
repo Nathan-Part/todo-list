@@ -22,6 +22,8 @@ export interface Raw {
   pauses: Pause[]
   sessions: Map<string, Session[]>
   subtasks: Map<string, Subtask[]>
+  /** Tâche → temps enregistré sur ses autres passages (autres jours), en secondes. */
+  otherDaysSec: Map<string, number>
 }
 
 export async function fetchRaw(
@@ -44,6 +46,24 @@ export async function fetchRaw(
     : []
 
   const subtaskList = taskIds.length ? await d.subtasks.where('taskId').anyOf(taskIds).toArray() : []
+  // temps déjà passé sur ces tâches les autres jours : une tâche sur plusieurs jours garde son total
+  const shown = new Set(entries.map((e) => e.id))
+  const otherEntries = taskIds.length
+    ? (await d.entries.where('taskId').anyOf(taskIds).toArray()).filter((e) => !shown.has(e.id))
+    : []
+  const otherSessions = otherEntries.length
+    ? await d.sessions
+        .where('entryId')
+        .anyOf(otherEntries.map((e) => e.id))
+        .toArray()
+    : []
+  const taskOfEntry = new Map(otherEntries.map((e) => [e.id, e.taskId!] as const))
+  const otherDaysSec = new Map<string, number>()
+  for (const s of otherSessions) {
+    if (s.running === 1) continue
+    const t = taskOfEntry.get(s.entryId)
+    if (t) otherDaysSec.set(t, (otherDaysSec.get(t) ?? 0) + s.durationSec)
+  }
   const subtasks = new Map<string, Subtask[]>()
   for (const st of subtaskList) {
     const list = subtasks.get(st.taskId)
@@ -64,6 +84,7 @@ export async function fetchRaw(
     pauses,
     sessions,
     subtasks,
+    otherDaysSec,
   }
 }
 
@@ -98,6 +119,7 @@ function toItem(e: Entry, raw: Raw): DayItem {
     categoryId: snapped ? e.categoryIdSnapshot : live?.categoryId,
     unplanned: !!e.unplanned,
     spentSec: own.filter((s) => s.running === 0).reduce((n, s) => n + s.durationSec, 0),
+    otherDaysSec: task ? raw.otherDaysSec.get(task.id) : undefined,
     runningSince: running?.startAt,
     hasSessions: own.length > 0,
     taskDeleted: task?.status === 'deleted',

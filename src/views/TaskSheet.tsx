@@ -17,8 +17,8 @@ import {
 } from '../domain/actions'
 import { addDays, diffDays } from '../domain/dates'
 import { loadTaskDetail } from '../domain/queries'
-import type { Entry } from '../domain/types'
-import { dayLabel, dayShort, dayTitle, formatMin, plural } from '../lib/format'
+import type { Entry, Session } from '../domain/types'
+import { dayLabel, dayShort, dayTitle, formatMin, formatSec, plural } from '../lib/format'
 import { useCategories, useRunningSession } from '../lib/hooks'
 import { useItemActions } from '../lib/itemActions'
 import { useNav } from '../lib/nav'
@@ -283,6 +283,7 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
       )}
 
       <Field label="Temps réel">
+        <TimeByDay sessions={sessions} today={today} />
         <SessionsEditor entryId={ctx?.id} sessions={sessions} day={ctx?.date} />
       </Field>
 
@@ -329,5 +330,30 @@ export function TaskSheet({ taskId, entryId, onClose }: { taskId: string; entryI
         </div>
       )}
     </Sheet>
+  )
+}
+
+/** Temps passé jour par jour, quand la tâche s'est étalée sur plusieurs jours. */
+function TimeByDay({ sessions, today }: { sessions: Session[]; today: string }) {
+  const byDay = new Map<string, number>()
+  for (const s of sessions) if (s.running === 0) byDay.set(s.date, (byDay.get(s.date) ?? 0) + s.durationSec)
+  if (byDay.size < 2) return null
+  const total = [...byDay.values()].reduce((a, b) => a + b, 0)
+  const days = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  return (
+    <div className="mb-3 rounded-2xl bg-accent-soft px-3 py-2.5 text-sm text-accent">
+      <div className="flex items-baseline justify-between font-semibold">
+        <span>Au total, sur {days.length} jours</span>
+        <span className="tabular">{formatSec(total)}</span>
+      </div>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {days.map(([day, sec]) => (
+          <li key={day} className="flex justify-between">
+            <span>{dayLabel(day, today)}</span>
+            <span className="tabular">{formatSec(sec)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

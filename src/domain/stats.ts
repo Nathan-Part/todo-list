@@ -22,6 +22,8 @@ export interface DayItem {
   unplanned: boolean
   /** Somme des sessions terminées, en secondes. */
   spentSec: number
+  /** Tâche : temps passé dessus les autres jours (passages précédents ou suivants), en secondes. */
+  otherDaysSec?: number
   /** Heure de départ du chrono en cours (ms), s'il tourne sur ce passage. */
   runningSince?: number
   hasSessions: boolean
