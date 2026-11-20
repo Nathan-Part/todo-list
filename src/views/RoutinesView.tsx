@@ -11,7 +11,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { type ReactNode, useEffect, useState } from 'react'
 import { type SwipeAction, Swipeable } from '../components/Swipe'
-import { DeviationBadge, remainingLabel } from '../components/pickers'
+import { DeviationBadge, OnSiteIcon, remainingLabel } from '../components/pickers'
 import { trendLabel } from '../domain/insights'
 import { CategoryDot, Icon, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
@@ -116,11 +116,22 @@ export function RoutinesView() {
 
   // l'ordre local n'est qu'un relais le temps que la base se mette à jour
   useEffect(() => setOrder(null), [data])
+  // faites aujourd'hui : coche verte, et rangées en bas ; celles qui restent à faire gardent le haut
+  const doneToday = new Set(
+    (data?.details ?? [])
+      .filter((d) => {
+        const g = d.grid.find((x) => x.day === today)
+        return g?.state === 'done' || g?.state === 'late'
+      })
+      .map((d) => d.routine.id),
+  )
   const details = (() => {
     const list = data?.details ?? []
-    if (!order) return list
-    const byIdMap = new Map(list.map((d) => [d.routine.id, d]))
-    return order.map((id) => byIdMap.get(id)).filter((d): d is RoutineDetail => !!d)
+    if (order) {
+      const byIdMap = new Map(list.map((d) => [d.routine.id, d]))
+      return order.map((id) => byIdMap.get(id)).filter((d): d is RoutineDetail => !!d)
+    }
+    return [...list.filter((d) => !doneToday.has(d.routine.id)), ...list.filter((d) => doneToday.has(d.routine.id))]
   })()
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e
@@ -128,7 +139,10 @@ export function RoutinesView() {
     const ids = details.map((d) => d.routine.id)
     const next = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)))
     setOrder(next)
-    void reorderRoutines(db, next, Date.now())
+    // l'ordre enregistré garde les routines faites à leur place habituelle : seul l'ordre des autres change
+    const moved = next.filter((id) => !doneToday.has(id))
+    const saved = (data?.details ?? []).map((d) => (doneToday.has(d.routine.id) ? d.routine.id : moved.shift()!))
+    void reorderRoutines(db, [...saved.filter(Boolean), ...moved], Date.now())
   }
 
   const remove = async (r: Routine) => {
@@ -195,7 +209,7 @@ export function RoutinesView() {
                 { label: 'Supprimer', tone: 'bad', onClick: () => void remove(r), full: true },
               ]}
             >
-            <div className="rounded-2xl border border-line/70 bg-surface p-3.5">
+            <div className={`rounded-2xl border bg-surface p-3.5 ${doneToday.has(r.id) ? 'border-good/50' : 'border-line/70'}`}>
             <button
               type="button"
               onClick={() => setSheet({ type: 'routine', routineId: r.id })}
@@ -204,8 +218,18 @@ export function RoutinesView() {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
+                    {doneToday.has(r.id) && (
+                      <span
+                        role="img"
+                        aria-label="Faite aujourd'hui"
+                        className="flex size-5 shrink-0 items-center justify-center rounded-full bg-good text-on-accent"
+                      >
+                        <Icon name="check" className="size-3" strokeWidth={3} />
+                      </span>
+                    )}
                     {cat && <CategoryDot color={cat.color} />}
                     <span className="truncate text-[15px] font-semibold">{r.name}</span>
+                    {r.onSite && <OnSiteIcon />}
                     {(pausedIds.has(r.id) || activeAll) && (
                       <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-semibold uppercase text-warn">
                         pause
