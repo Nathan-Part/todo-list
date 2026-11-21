@@ -16,7 +16,7 @@ export interface Release {
 export const RELEASES: Release[] = [
   {
     version: '1.8',
-    date: '2026-11-20',
+    date: '2026-11-21',
     title: 'Je vais dormir, sur place ou partout, copies automatiques et activité horaire',
     changes: [
       'La journée change quand tu appuies sur « Je vais dormir » (le soir, en haut de la page Jour), ou toute seule à 5 h du matin.',
