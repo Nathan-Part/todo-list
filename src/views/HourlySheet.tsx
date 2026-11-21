@@ -30,9 +30,9 @@ const clock = (h: number) => ((h % 24) + 24) % 24
 const hourLabel = (h: number) => `${clock(h)} h`
 
 /** Les intervalles chronométrés d'un jour. */
-function useBlocks(day: DayKey, today: DayKey, now: number): Block[] | undefined {
+function useBlocks(day: DayKey, today: DayKey, now: number): { blocks: Block[] | undefined; items: DayItem[] | undefined } {
   const items = useDayItems(day, today)
-  return useMemo(
+  const blocks = useMemo(
     () =>
       items?.flatMap((i) =>
         i.segments.map((sg) => ({
@@ -47,6 +47,7 @@ function useBlocks(day: DayKey, today: DayKey, now: number): Block[] | undefined
       ),
     [items, now],
   )
+  return { blocks, items }
 }
 
 /** Heures proposées pour un jour : la journée entière, prolongée la nuit ou la veille au soir s'il y a eu de l'activité. */
@@ -137,19 +138,22 @@ function DayPickerRow({
         )}
       </div>
       {open && (
-        <input
-          type="date"
-          max={today}
-          value={day}
-          aria-label="Jour"
-          onChange={(e) => {
-            if (e.target.value && e.target.value <= today) {
-              onChange(e.target.value)
-              setOpen(false)
-            }
-          }}
-          className={`${inputClass} mt-2`}
-        />
+        // sur iPhone, la roue envoie un changement à chaque cran : on suit la date, et on ferme avec « OK »
+        <div className="mt-2 flex items-center gap-2">
+          <input
+            type="date"
+            max={today}
+            value={day}
+            aria-label="Jour"
+            onChange={(e) => {
+              if (e.target.value && e.target.value <= today) onChange(e.target.value)
+            }}
+            className={`${inputClass} min-w-0 flex-1`}
+          />
+          <button type="button" onClick={() => setOpen(false)} className="rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent">
+            OK
+          </button>
+        </div>
       )}
     </div>
   )
@@ -160,18 +164,24 @@ function HourPanel({
   day,
   hour,
   blocks,
+  items,
   now,
   today,
   compact,
   title,
+  onHour,
 }: {
   day: DayKey
   hour: number
   blocks: Block[]
+  /** Tout ce qui est noté ce jour-là, pour signaler ce qui n'a pas d'heure. */
+  items?: DayItem[]
   now: number
   today: DayKey
   compact?: boolean
   title?: string
+  /** Aller à une autre heure (celles où il s'est passé quelque chose ce jour-là). */
+  onHour?: (h: number) => void
 }) {
   const { setSheet } = useNav()
   const { byId } = useCategories()
@@ -200,6 +210,15 @@ function HourPanel({
     laneOf.set(b.key, lane)
   }
   const laneCount = Math.max(1, lanes.length)
+
+  // heures actives de ce jour, pour y aller d'un geste quand l'heure choisie est vide
+  const otherHours = [...new Set(blocks.flatMap((b) => {
+    const out: number[] = []
+    for (let x = Math.floor((b.start - hourStart(day, 0)) / HOUR); hourStart(day, x) < b.end; x++) out.push(x)
+    return out
+  }))].sort((a, b) => a - b).slice(0, 12)
+  // faites ce jour-là sans heures : elles ne peuvent pas être placées dans une heure
+  const untimed = (items ?? []).filter((i) => i.status === 'done' && i.segments.length === 0)
 
   return (
     <div>
@@ -251,6 +270,26 @@ function HourPanel({
       {inHour.length === 0 ? (
         <div className={`${compact ? 'mt-2 py-3' : 'mt-6 py-6'} rounded-2xl border border-dashed border-line px-4 text-center text-sm text-muted`}>
           {future ? "Cette heure n'est pas encore passée." : "Rien d'enregistré pendant cette heure."}
+          {!future && otherHours.length > 0 && onHour && (
+            <div className="mt-2">
+              <div className="text-xs">Ce jour-là, il s'est passé quelque chose à :</div>
+              <div className="mt-1.5 flex flex-wrap justify-center gap-1.5">
+                {otherHours.map((x) => (
+                  <button
+                    key={x}
+                    type="button"
+                    onClick={() => onHour(x)}
+                    className="rounded-full bg-accent-soft px-2.5 py-1 text-xs font-semibold tabular text-accent"
+                  >
+                    {hourLabel(x)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {!future && otherHours.length === 0 && blocks.length === 0 && (
+            <div className="mt-1 text-xs">Aucune heure enregistrée ce jour-là.</div>
+          )}
         </div>
       ) : (
         <ul className={`${compact ? 'mt-2' : 'mt-5'} space-y-2`}>
@@ -293,6 +332,13 @@ function HourPanel({
           })}
         </ul>
       )}
+      {untimed.length > 0 && !future && (
+        <p className="mt-2 text-xs text-muted">
+          {untimed.length > 1 ? `${untimed.length} choses faites` : '1 chose faite'} ce jour-là sans heures (
+          {untimed.slice(0, 3).map((i) => i.name).join(', ')}
+          {untimed.length > 3 ? '…' : ''}) : elles n'apparaissent dans aucune heure.
+        </p>
+      )}
     </div>
   )
 }
@@ -303,8 +349,8 @@ export function HourlySheet({ day: initialDay, onClose }: { day: DayKey; onClose
   const now = useNow(30_000)
   const [day, setDay] = useState(initialDay)
   const [other, setOther] = useState<DayKey | null>(null)
-  const blocks = useBlocks(day, today, now)
-  const otherBlocks = useBlocks(other ?? day, today, now)
+  const { blocks, items } = useBlocks(day, today, now)
+  const { blocks: otherBlocks, items: otherItems } = useBlocks(other ?? day, today, now)
 
   const nowHour = day === today ? Math.floor((now - hourStart(day, 0)) / HOUR) : -99
   const [minH, maxH] = hoursRange(day, blocks ?? [], nowHour, now)
@@ -441,13 +487,13 @@ export function HourlySheet({ day: initialDay, onClose }: { day: DayKey; onClose
             </div>
           )}
           <div className="mt-4 space-y-5">
-            <HourPanel day={day} hour={h} blocks={blocks ?? []} now={now} today={today} compact title={dayLabel(day, today)} />
-            <HourPanel day={other} hour={h} blocks={otherBlocks ?? []} now={now} today={today} compact title={dayLabel(other, today)} />
+            <HourPanel day={day} hour={h} blocks={blocks ?? []} items={items} now={now} today={today} compact title={dayLabel(day, today)} onHour={setHour} />
+            <HourPanel day={other} hour={h} blocks={otherBlocks ?? []} items={otherItems} now={now} today={today} compact title={dayLabel(other, today)} onHour={setHour} />
           </div>
         </>
       ) : (
         <div className="mt-4">
-          <HourPanel day={day} hour={h} blocks={blocks ?? []} now={now} today={today} />
+          <HourPanel day={day} hour={h} blocks={blocks ?? []} items={items} now={now} today={today} onHour={setHour} />
         </div>
       )}
     </Sheet>

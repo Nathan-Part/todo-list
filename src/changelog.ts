@@ -15,6 +15,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '2.0',
+    date: '2026-11-21',
+    title: 'Correction : choisir un jour dans l\'activité horaire',
+    changes: [
+      'Sur iPhone, le calendrier se refermait au premier cran de la roue et gardait un mauvais jour : il reste maintenant ouvert jusqu\'à « OK ».',
+      'Quand l\'heure choisie est vide pour un jour, l\'app propose les heures où il s\'est passé quelque chose ce jour-là, et signale ce qui a été fait sans heures.',
+    ],
+  },
+  {
     version: '1.9',
     date: '2026-11-21',
     title: 'Icône téléphone, tâches à étapes repérables, activité horaire d\'un autre jour',
