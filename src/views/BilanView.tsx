@@ -238,6 +238,7 @@ function DaySummary() {
                     <span className="min-w-0 flex-1 break-words text-sm leading-snug">
                       {t.item.name}
                       {t.item.status === 'done' && <Icon name="check" className="ml-1 inline size-3.5 text-good" strokeWidth={3} />}
+                      <WithSteps item={t.item} />
                       {t.running && <span className="ml-1 text-xs text-accent">en cours</span>}
                       {t.item.status === 'done' && !!t.item.otherDaysSec && lastTimed.get(t.item.id) === idx && (
                         <span className="ml-1 text-xs text-muted">· {formatSec(t.item.spentSec + t.item.otherDaysSec)} au total</span>
@@ -273,6 +274,7 @@ function DaySummary() {
                 <span className="mt-1.5 size-2.5 shrink-0 rounded-full" style={{ backgroundColor: (i.categoryId && byId.get(i.categoryId)?.color) || 'var(--muted)' }} />
                 <span className="min-w-0 flex-1 break-words text-sm leading-snug">
                   {i.name} <Icon name="check" className="inline size-3.5 text-good" strokeWidth={3} />
+                  <WithSteps item={i} />
                   {!!i.otherDaysSec && <span className="ml-1 text-xs text-muted">· {formatSec(i.spentSec + i.otherDaysSec)} au total</span>}
                 </span>
                 <span className="shrink-0 pt-0.5 text-xs tabular text-muted">{i.spentSec > 0 ? formatSec(i.spentSec) : 'durée ?'}</span>
@@ -547,6 +549,26 @@ function StepLabel({ item, step, running }: { item: DayItem; step: DayItem['subt
         <span className="min-w-0 break-words">
           Étape {item.subtasks.indexOf(step) + 1} sur {item.subtasks.length} · {item.name}
         </span>
+      </span>
+    </span>
+  )
+}
+
+/** Sous le nom d'une tâche découpée cochée d'un coup : on voit que c'est une tâche avec des étapes. */
+function WithSteps({ item }: { item: DayItem }) {
+  if (item.kind !== 'task' || item.subtasks.length === 0) return null
+  const grouped = item.subtasks.filter((st) => st.withTask).length
+  const n = item.subtasks.length
+  return (
+    <span className="mt-1 flex w-fit max-w-full items-center gap-1 rounded-lg bg-accent-soft px-2 py-0.5 text-[11px] font-medium leading-snug text-accent">
+      <Icon name="list" className="size-3 shrink-0" />
+      <span className="min-w-0">
+        Tâche avec {n} {n > 1 ? 'étapes' : 'étape'}
+        {grouped > 0 && grouped < n
+          ? ` · ${grouped} ${grouped > 1 ? 'cochées' : 'cochée'} avec elle`
+          : grouped === n
+            ? ` · ${n > 1 ? 'toutes cochées' : 'cochée'} d'un coup`
+            : ''}
       </span>
     </span>
   )

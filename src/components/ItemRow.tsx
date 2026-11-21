@@ -6,7 +6,7 @@ import { useNav } from '../lib/nav'
 import { type SwipeAction, Swipeable } from './Swipe'
 
 const scrollIntoViewRef = (el: HTMLElement | null) => el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-import { OnSiteIcon, remainingLabel } from './pickers'
+import { PlaceIcon, remainingLabel } from './pickers'
 import type { DayItem } from '../domain/stats'
 import { liveSpentSec, liveStepSec } from '../domain/stats'
 import type { Category } from '../domain/types'
@@ -185,7 +185,7 @@ export function ItemRow({
           >
             {item.name}
           </span>
-          {item.onSite && <OnSiteIcon />}
+          <PlaceIcon onSite={item.onSite} />
           {item.kind === 'routine' && <Icon name="repeat" className="size-3.5 shrink-0 text-muted" />}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">

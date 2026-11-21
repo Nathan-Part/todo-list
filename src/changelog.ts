@@ -15,6 +15,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '1.9',
+    date: '2026-11-21',
+    title: 'Icône téléphone, tâches à étapes repérables, activité horaire d\'un autre jour',
+    changes: [
+      'Les tâches « Partout » ont maintenant une petite icône téléphone, à côté de la maison des tâches « Sur place ».',
+      'Dans le résumé du jour, une tâche à étapes cochée d\'un coup affiche « Tâche avec 3 étapes », pour qu\'on sache qu\'elle était découpée.',
+      'Activité horaire : un calendrier pour choisir un autre jour, et « Comparer avec un autre jour » pour voir la même heure de deux jours l\'une sous l\'autre.',
+    ],
+  },
+  {
     version: '1.8',
     date: '2026-11-21',
     title: 'Je vais dormir, sur place ou partout, copies automatiques et activité horaire',

@@ -138,11 +138,15 @@ export function PlaceChips({ value, onChange }: { value: boolean; onChange: (onS
   )
 }
 
-/** Petite maison à côté du nom : tâche à faire sur place. */
-export function OnSiteIcon({ className = 'size-3.5' }: { className?: string }) {
-  return (
+/** À côté du nom : une petite maison (à faire sur place) ou un téléphone (faisable partout). */
+export function PlaceIcon({ onSite, className = 'size-3.5' }: { onSite?: boolean; className?: string }) {
+  return onSite ? (
     <span role="img" aria-label="Sur place" title="Sur place" className="inline-flex shrink-0 text-warn">
       <Icon name="home" className={className} strokeWidth={2.4} />
+    </span>
+  ) : (
+    <span role="img" aria-label="Partout" title="Partout" className="inline-flex shrink-0 text-accent">
+      <Icon name="phone" className={className} strokeWidth={2.4} />
     </span>
   )
 }

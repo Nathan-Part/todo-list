@@ -11,7 +11,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { type ReactNode, useEffect, useState } from 'react'
 import { type SwipeAction, Swipeable } from '../components/Swipe'
-import { DeviationBadge, OnSiteIcon, remainingLabel } from '../components/pickers'
+import { DeviationBadge, PlaceIcon, remainingLabel } from '../components/pickers'
 import { trendLabel } from '../domain/insights'
 import { CategoryDot, Icon, btnGhost, btnPrimary } from '../components/ui'
 import { db } from '../db'
@@ -229,7 +229,7 @@ export function RoutinesView() {
                     )}
                     {cat && <CategoryDot color={cat.color} />}
                     <span className="truncate text-[15px] font-semibold">{r.name}</span>
-                    {r.onSite && <OnSiteIcon />}
+                    <PlaceIcon onSite={r.onSite} />
                     {(pausedIds.has(r.id) || activeAll) && (
                       <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] font-semibold uppercase text-warn">
                         pause

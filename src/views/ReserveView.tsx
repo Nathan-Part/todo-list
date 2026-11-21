@@ -10,7 +10,7 @@ import {
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useEffect, useState } from 'react'
 import { SubtaskDropdown } from '../components/ItemRow'
-import { OnSiteIcon } from '../components/pickers'
+import { PlaceIcon } from '../components/pickers'
 import { Swipeable } from '../components/Swipe'
 import { CategoryDot, Icon, btnSoft } from '../components/ui'
 import { db } from '../db'
@@ -85,7 +85,7 @@ function ReserveRow({ r }: { r: ReserveItem }) {
       >
         <div className="flex items-center gap-1.5">
           <span className="break-words text-[15px] font-medium leading-snug">{t.name}</span>
-          {t.onSite && <OnSiteIcon />}
+          <PlaceIcon onSite={t.onSite} />
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted">
           {t.needsReview && t.reserveSince ? (
